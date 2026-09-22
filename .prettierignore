@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+build
+coverage
+package-lock.json
+
+# Pre-existing planning docs, not owned by app source formatting
+docs
+tasks
+.superpowers
