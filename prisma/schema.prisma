@@ -113,6 +113,11 @@ model Account {
   household   Household   @relation(fields: [householdId], references: [id])
   name        String
   type        AccountType
+  // Task 6 addition (not in the original design spec's Data Model list, but
+  // required by the spec's Error Handling section: records with history are
+  // archived, never hard-deleted). Archiving sets this true instead of
+  // deleting the row, so Transaction/ImportBatch history stays intact.
+  isArchived  Boolean     @default(false)
 
   transactions  Transaction[]
   importBatches ImportBatch[]
