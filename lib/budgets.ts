@@ -1,5 +1,19 @@
-import type { BudgetAllocation, BudgetPeriod, BudgetTargetType } from "@prisma/client";
+import type {
+  BudgetAllocation,
+  BudgetPeriod,
+  BudgetTargetType,
+  Prisma,
+} from "@prisma/client";
 import { db } from "@/lib/db";
+
+/** Either the shared `db` singleton or a Prisma interactive-transaction
+ * client (`tx` from `db.$transaction(async (tx) => ...)`). Same convention
+ * as lib/categories.ts's DbClient — lets setAllocation participate in a
+ * caller's larger atomic transaction (see saveAllocationsAction in
+ * app/(app)/budget/actions.ts, which writes a whole batch of allocations
+ * all-or-nothing) while everyone else keeps calling it with no 5th
+ * argument at all. */
+type DbClient = typeof db | Prisma.TransactionClient;
 
 /**
  * Opens (or creates) the BudgetPeriod for a given household/year/month.
@@ -60,16 +74,25 @@ export async function getOrCreateBudgetPeriod(
  * could otherwise submit an id belonging to a different household. This
  * mirrors the same real-ownership-check pattern
  * app/(app)/transactions/actions.ts uses for accountId/categoryId.
+ *
+ * The optional `client` (defaulting to the shared `db` singleton) lets a
+ * caller pass a `db.$transaction`'s `tx` client instead, so this call
+ * participates in a larger atomic transaction — e.g. saveAllocationsAction
+ * writing a whole batch of per-category amounts all-or-nothing, so a
+ * failure partway through the batch (a category deleted out from under the
+ * request, etc.) can't leave earlier categories in that same submission
+ * persisted while later ones fail.
  */
 export async function setAllocation(
   householdId: string,
   budgetPeriodId: string,
   categoryId: string,
   plannedAmount: string,
+  client: DbClient = db,
 ): Promise<BudgetAllocation> {
   const [period, category] = await Promise.all([
-    db.budgetPeriod.findFirst({ where: { id: budgetPeriodId, householdId } }),
-    db.category.findFirst({ where: { id: categoryId, householdId } }),
+    client.budgetPeriod.findFirst({ where: { id: budgetPeriodId, householdId } }),
+    client.category.findFirst({ where: { id: categoryId, householdId } }),
   ]);
 
   if (!period) {
@@ -79,7 +102,7 @@ export async function setAllocation(
     throw new Error("Category not found.");
   }
 
-  return db.budgetAllocation.upsert({
+  return client.budgetAllocation.upsert({
     where: { budgetPeriodId_categoryId: { budgetPeriodId, categoryId } },
     create: { budgetPeriodId, categoryId, plannedAmount },
     update: { plannedAmount },

@@ -201,6 +201,105 @@ describe("setAllocation: upsert, not duplicate", () => {
   });
 });
 
+describe("setAllocation: batch atomicity via db.$transaction", () => {
+  // Regression test for the review finding on app/(app)/budget/actions.ts's
+  // saveAllocationsAction: it used to write each category's allocation as
+  // it validated them, one at a time, so a failure partway through a batch
+  // (e.g. an invalid amount, or — as reproduced directly here — an
+  // ownership-check failure) left earlier categories in that SAME
+  // submission already persisted. The fix wraps the whole per-category
+  // write loop in one db.$transaction, passing setAllocation's optional
+  // `client` (tx) argument, so a failure anywhere in the batch rolls back
+  // everything written earlier in that same transaction too. This proves
+  // the underlying building block the fix relies on: setAllocation
+  // genuinely participates in, and is rolled back by, the caller's
+  // transaction — not just "doesn't error twice."
+  const runId = Date.now().toString();
+  const householdId = `test-household-alloc-atomic-${runId}`;
+  const otherHouseholdId = `test-household-alloc-atomic-other-${runId}`;
+
+  beforeAll(async () => {
+    await db.household.create({
+      data: { id: householdId, name: "Atomic Batch Household", currency: "USD" },
+    });
+    await db.household.create({
+      data: { id: otherHouseholdId, name: "Atomic Batch Other Household", currency: "USD" },
+    });
+  });
+
+  afterAll(async () => {
+    await db.budgetAllocation.deleteMany({
+      where: { budgetPeriod: { householdId: { in: [householdId, otherHouseholdId] } } },
+    });
+    await db.budgetPeriod.deleteMany({
+      where: { householdId: { in: [householdId, otherHouseholdId] } },
+    });
+    await db.category.deleteMany({
+      where: { householdId: { in: [householdId, otherHouseholdId] } },
+    });
+    await db.household.deleteMany({
+      where: { id: { in: [householdId, otherHouseholdId] } },
+    });
+  });
+
+  it("rolls back every write in the batch when a later entry fails, leaving none of the batch persisted", async () => {
+    const period = await getOrCreateBudgetPeriod(householdId, 2031, 1);
+    const groceries = await createCategory(householdId, "Groceries C", "expense");
+    const dining = await createCategory(householdId, "Dining C", "expense");
+    // A category id that genuinely belongs to a DIFFERENT household — same
+    // shape of failure setAllocation's ownership check raises for a
+    // tampered/stale id, placed last in the batch so the first two entries
+    // would (bug-era) already be committed by the time this one throws.
+    const foreignCategory = await createCategory(
+      otherHouseholdId,
+      "Foreign Category",
+      "expense",
+    );
+
+    const batch: { categoryId: string; amount: string }[] = [
+      { categoryId: groceries.id, amount: "400.00" },
+      { categoryId: dining.id, amount: "150.75" },
+      { categoryId: foreignCategory.id, amount: "50.00" },
+    ];
+
+    await expect(
+      db.$transaction(async (tx) => {
+        for (const entry of batch) {
+          await setAllocation(householdId, period.id, entry.categoryId, entry.amount, tx);
+        }
+      }),
+    ).rejects.toThrow();
+
+    // Neither of the two earlier, individually-valid entries was left
+    // behind — the whole batch's writes were rolled back together.
+    const rows = await getAllocationsForPeriod(period.id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("commits every write in the batch when all entries succeed", async () => {
+    const period = await getOrCreateBudgetPeriod(householdId, 2031, 2);
+    const rent = await createCategory(householdId, "Rent C", "expense");
+    const utilities = await createCategory(householdId, "Utilities C", "expense");
+
+    const batch: { categoryId: string; amount: string }[] = [
+      { categoryId: rent.id, amount: "1200.00" },
+      { categoryId: utilities.id, amount: "85.25" },
+    ];
+
+    await db.$transaction(async (tx) => {
+      for (const entry of batch) {
+        await setAllocation(householdId, period.id, entry.categoryId, entry.amount, tx);
+      }
+    });
+
+    const rows = await getAllocationsForPeriod(period.id);
+    expect(rows).toHaveLength(2);
+    const byCategory = new Map(rows.map((r) => [r.categoryId, r.plannedAmount.toString()]));
+    expect(byCategory.get(rent.id)).toBe("1200");
+    expect(byCategory.get(utilities.id)).toBe("85.25");
+  });
+});
+
 describe("copyAllocationsFromPreviousPeriod", () => {
   const runId = Date.now().toString();
   const householdId = `test-household-copy-${runId}`;

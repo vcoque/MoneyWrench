@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { BudgetTargetType } from "@prisma/client";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { listCategories } from "@/lib/categories";
 import {
   copyAllocationsFromPreviousPeriod,
@@ -108,9 +109,18 @@ export async function setOverallTargetAction(
  * allocation untouched rather than deleting it, since "delete an
  * allocation" isn't in this task's scope.
  *
- * Each non-blank amount is written via setAllocation, which itself upserts
- * on the (budgetPeriodId, categoryId) unique constraint AND re-verifies
- * both ids belong to this household before writing — see lib/budgets.ts.
+ * Two-pass, all-or-nothing: first every non-blank amount field is validated
+ * (no writes yet), and only if ALL of them pass does the second pass write
+ * them — inside a single db.$transaction, so a write-time failure partway
+ * through the batch (e.g. setAllocation's ownership check rejecting a
+ * category that was deleted out from under the request) rolls back
+ * everything already written in THIS submission too. Previously this wrote
+ * inside the validation loop itself, so an invalid field later in the form
+ * could leave earlier, valid categories already persisted while the
+ * request as a whole reported an error — a partial, field-order-dependent
+ * write. Each write still goes through setAllocation, which upserts on the
+ * (budgetPeriodId, categoryId) unique constraint AND re-verifies both ids
+ * belong to this household — see lib/budgets.ts.
  */
 export async function saveAllocationsAction(
   _prevState: BudgetActionState,
@@ -128,6 +138,8 @@ export async function saveAllocationsAction(
 
   const categories = await listCategories(session.householdId);
 
+  // Pass 1: validate every non-blank amount. No writes happen here.
+  const entries: { categoryId: string; amount: string }[] = [];
   for (const category of categories) {
     const raw = String(formData.get(`amount-${category.id}`) ?? "").trim();
     if (raw === "") {
@@ -138,7 +150,22 @@ export async function saveAllocationsAction(
         error: `Amount for "${category.name}" must be a non-negative number (up to 2 decimals).`,
       };
     }
-    await setAllocation(session.householdId, budgetPeriodId, category.id, raw);
+    entries.push({ categoryId: category.id, amount: raw });
+  }
+
+  // Pass 2: write the whole validated batch atomically. If anything fails
+  // here (e.g. a race with the category/period being removed concurrently),
+  // the transaction rolls back and NONE of this submission's allocations
+  // are persisted — not just the ones after the failing entry.
+  const householdId = session.householdId;
+  try {
+    await db.$transaction(async (tx) => {
+      for (const entry of entries) {
+        await setAllocation(householdId, budgetPeriodId, entry.categoryId, entry.amount, tx);
+      }
+    });
+  } catch {
+    return { error: "Could not save allocations. Please try again." };
   }
 
   revalidatePath("/budget");
