@@ -1,5 +1,14 @@
-import type { Category, CategoryKind } from "@prisma/client";
+import type { Category, CategoryKind, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+
+/** Either the shared `db` singleton or a Prisma interactive-transaction
+ * client (`tx` from `db.$transaction(async (tx) => ...)`). Letting
+ * createCategory accept either means callers that need the category insert
+ * to participate in a larger atomic transaction (e.g. Task 9's
+ * createGoal, which must create a SavingsGoal and its linked Category
+ * together-or-not-at-all) can pass `tx`, while everyone else keeps calling
+ * this with no 5th argument at all. */
+type DbClient = typeof db | Prisma.TransactionClient;
 
 /**
  * Lists non-archived categories for a household, newest first. Callers MUST
@@ -19,18 +28,24 @@ export async function listCategories(householdId: string): Promise<Category[]> {
  *
  * Accepts `kind` and an optional `savingsGoalId` rather than hardcoding
  * `kind: "expense"` — this task's own UI (app/(app)/categories) only ever
- * calls this with kind "expense" and no savingsGoalId, but a future task
+ * calls this with kind "expense" and no savingsGoalId, but Task 9
  * (SavingsGoal creation) needs to create the linked `savings_goal`-kind
  * category for a goal via this same function, passing kind "savings_goal"
  * and that goal's id, without duplicating category-insert logic.
+ *
+ * The optional `client` (defaulting to the shared `db` singleton) lets
+ * Task 9's createGoal pass its transaction's `tx` client instead, so this
+ * insert participates in that atomic create-goal-and-category transaction
+ * rather than running against a separate, unrelated connection.
  */
 export async function createCategory(
   householdId: string,
   name: string,
   kind: CategoryKind,
   savingsGoalId?: string,
+  client: DbClient = db,
 ): Promise<Category> {
-  return db.category.create({
+  return client.category.create({
     data: { householdId, name, kind, savingsGoalId },
   });
 }
