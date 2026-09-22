@@ -15,22 +15,32 @@ model Household {
   users   User[]
   invites Invite[]
 
+  accounts      Account[]
+  categories    Category[]
+  savingsGoals  SavingsGoal[]
+  budgetPeriods BudgetPeriod[]
+  transactions  Transaction[]
+  categoryRules CategoryRule[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model User {
-  id          String    @id @default(cuid())
-  householdId String
-  household   Household @relation(fields: [householdId], references: [id])
-  email       String    @unique
-  name        String
+  id           String    @id @default(cuid())
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id])
+  email        String    @unique
+  name         String
   // Placeholder for Task 3 (Auth.js). Nullable, unused by this task — no
   // hashing or validation logic here, just the column so Task 3 doesn't
   // need its own schema migration to add it.
   passwordHash String?
 
   createdInvites Invite[] @relation("InviteCreatedBy")
+
+  createdTransactions   Transaction[]
+  uploadedImportBatches ImportBatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,4 +70,193 @@ model Invite {
   updatedAt DateTime @updatedAt
 
   @@index([householdId])
+}
+
+// --- Task 5: domain schema (budgeting, accounts, transactions, imports) ---
+
+enum AccountType {
+  checking
+  credit_card
+  savings
+  cash
+}
+
+enum CategoryKind {
+  expense
+  savings_goal
+}
+
+enum BudgetTargetType {
+  spend_limit
+  save_target
+}
+
+enum TransactionType {
+  expense
+  income
+}
+
+enum TransactionSource {
+  manual
+  import
+}
+
+enum CategoryRuleMatchType {
+  contains
+  exact
+  regex
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  householdId String
+  household   Household   @relation(fields: [householdId], references: [id])
+  name        String
+  type        AccountType
+
+  transactions  Transaction[]
+  importBatches ImportBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+// A Category is either an `expense` category (user-created, Task 7) or a
+// `savings_goal` category (auto-created alongside a SavingsGoal, Task 9).
+// `savingsGoalId` is only ever set for the latter — it is the back-link from
+// the category to the goal it accumulates progress for. Contributing to a
+// goal is just a Transaction posted to its linked category; there is no
+// separate contribution entity (see SavingsGoal below).
+model Category {
+  id            String       @id @default(cuid())
+  householdId   String
+  household     Household    @relation(fields: [householdId], references: [id])
+  name          String
+  kind          CategoryKind
+  savingsGoalId String?      @unique
+  savingsGoal   SavingsGoal? @relation(fields: [savingsGoalId], references: [id])
+
+  allocations   BudgetAllocation[]
+  transactions  Transaction[]
+  categoryRules CategoryRule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+// Progress toward `targetAmount` is intentionally NOT stored here — it is
+// computed on read as the sum of all-time Transactions posted to this goal's
+// linked Category (via Category.savingsGoalId), so it never drifts out of
+// sync with the transaction ledger.
+model SavingsGoal {
+  id           String    @id @default(cuid())
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id])
+  name         String
+  targetAmount Decimal
+
+  category Category?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+model BudgetPeriod {
+  id                String            @id @default(cuid())
+  householdId       String
+  household         Household         @relation(fields: [householdId], references: [id])
+  year              Int
+  month             Int
+  overallTarget     Decimal?
+  overallTargetType BudgetTargetType?
+
+  allocations BudgetAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([householdId, year, month])
+  @@index([householdId])
+}
+
+model BudgetAllocation {
+  id             String       @id @default(cuid())
+  budgetPeriodId String
+  budgetPeriod   BudgetPeriod @relation(fields: [budgetPeriodId], references: [id])
+  categoryId     String
+  category       Category     @relation(fields: [categoryId], references: [id])
+  plannedAmount  Decimal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([budgetPeriodId])
+  @@index([categoryId])
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  householdId     String
+  household       Household         @relation(fields: [householdId], references: [id])
+  accountId       String
+  account         Account           @relation(fields: [accountId], references: [id])
+  categoryId      String?
+  category        Category?         @relation(fields: [categoryId], references: [id])
+  date            DateTime
+  amount          Decimal
+  type            TransactionType
+  description     String
+  source          TransactionSource
+  importBatchId   String?
+  importBatch     ImportBatch?      @relation(fields: [importBatchId], references: [id])
+  createdByUserId String
+  createdByUser   User              @relation(fields: [createdByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id               String   @id @default(cuid())
+  accountId        String
+  account          Account  @relation(fields: [accountId], references: [id])
+  importedAt       DateTime @default(now())
+  filename         String
+  uploadedByUserId String
+  uploadedByUser   User     @relation(fields: [uploadedByUserId], references: [id])
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+model CategoryRule {
+  id          String                @id @default(cuid())
+  householdId String
+  household   Household             @relation(fields: [householdId], references: [id])
+  matchType   CategoryRuleMatchType
+  pattern     String
+  categoryId  String
+  category    Category              @relation(fields: [categoryId], references: [id])
+  priority    Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+  @@index([categoryId])
 }
