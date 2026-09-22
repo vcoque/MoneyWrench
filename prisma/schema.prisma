@@ -142,6 +142,13 @@ model Category {
   kind          CategoryKind
   savingsGoalId String?      @unique
   savingsGoal   SavingsGoal? @relation(fields: [savingsGoalId], references: [id])
+  // Task 7 addition (same gap as Account hit in Task 6): the design spec's
+  // Error Handling section requires archiving-not-deleting for records with
+  // history (e.g. a category with existing transactions), but Task 5's
+  // schema omitted archive flags entirely. Archiving sets this true instead
+  // of deleting the row, so Transaction/BudgetAllocation/CategoryRule history
+  // referencing it stays intact.
+  isArchived    Boolean      @default(false)
 
   allocations   BudgetAllocation[]
   transactions  Transaction[]
