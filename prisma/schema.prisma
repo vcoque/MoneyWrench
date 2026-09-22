@@ -12,7 +12,8 @@ model Household {
   name     String
   currency String
 
-  users User[]
+  users   User[]
+  invites Invite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,6 +29,32 @@ model User {
   // hashing or validation logic here, just the column so Task 3 doesn't
   // need its own schema migration to add it.
   passwordHash String?
+
+  createdInvites Invite[] @relation("InviteCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+// Single-use, token-based household invite (Task 4). The inviter generates
+// a link and shares it manually — no email-sending provider is involved.
+// `token` is the unique, unguessable secret embedded in the invite URL;
+// `consumedAt` being non-null is what prevents reuse, set atomically at
+// redemption time (see lib/invites.ts `consumeInvite`) to close the race
+// between two people redeeming the same link concurrently.
+model Invite {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+
+  createdByUserId String
+  createdBy       User   @relation("InviteCreatedBy", fields: [createdByUserId], references: [id])
+
+  expiresAt  DateTime
+  consumedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
