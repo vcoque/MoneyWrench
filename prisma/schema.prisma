@@ -24,6 +24,10 @@ model User {
   household   Household @relation(fields: [householdId], references: [id])
   email       String    @unique
   name        String
+  // Placeholder for Task 3 (Auth.js). Nullable, unused by this task — no
+  // hashing or validation logic here, just the column so Task 3 doesn't
+  // need its own schema migration to add it.
+  passwordHash String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
