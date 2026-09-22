@@ -153,6 +153,7 @@ model Category {
   allocations   BudgetAllocation[]
   transactions  Transaction[]
   categoryRules CategoryRule[]
+  importRows    ImportRow[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -247,6 +248,12 @@ model Transaction {
   @@index([importBatchId])
 }
 
+// Task 12 addition: `committed` and `rows` are built now as part of the
+// full staged-import shape (parse → preview [Task 12] → auto-categorize
+// [Task 13] → review/commit [Task 14] → duplicate detection [Task 15]), even
+// though only Task 12's own parse-and-preview behavior is implemented here.
+// `committed` guards against re-committing the same batch to Transaction —
+// set true by Task 14's commit logic, left false by this task.
 model ImportBatch {
   id               String   @id @default(cuid())
   accountId        String
@@ -255,13 +262,47 @@ model ImportBatch {
   filename         String
   uploadedByUserId String
   uploadedByUser   User     @relation(fields: [uploadedByUserId], references: [id])
+  committed        Boolean  @default(false)
 
   transactions Transaction[]
+  rows         ImportRow[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([accountId])
+}
+
+// One staged row per CSV data row, written by Task 12's parse step. `raw*`
+// fields are verbatim from the uploaded CSV (never mutated); `parsed*`/
+// `parseError` are this task's parse result for that row. `categoryId`,
+// `isDuplicate`, `includeInCommit`, and `committedTransactionId` are read
+// and written only by later tasks (13-15) — Task 12 leaves them at their
+// defaults (null / false / true / null respectively) for every row it
+// creates.
+model ImportRow {
+  id             String      @id @default(cuid())
+  importBatchId  String
+  importBatch    ImportBatch @relation(fields: [importBatchId], references: [id])
+  rowIndex       Int
+  rawDate        String
+  rawDescription String
+  rawAmount      String
+  parsedDate     DateTime?
+  parsedAmount   Decimal?
+  parseError     String?
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  isDuplicate            Boolean @default(false)
+  includeInCommit        Boolean @default(true)
+  committedTransactionId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([importBatchId])
 }
 
 model CategoryRule {
