@@ -197,6 +197,13 @@ model BudgetPeriod {
   @@index([householdId])
 }
 
+// Task 10 addition: without a uniqueness constraint on
+// (budgetPeriodId, categoryId), "set an allocation for a category in a
+// period" would have to choose between blindly INSERTing (creating a
+// duplicate row every time the user re-saves the same category) or doing a
+// find-then-write (a TOCTOU race under concurrent household members). The
+// constraint lets lib/budgets.ts's setAllocation do a single atomic
+// `upsert` keyed on it instead, which prevents duplicates by construction.
 model BudgetAllocation {
   id             String       @id @default(cuid())
   budgetPeriodId String
@@ -208,6 +215,7 @@ model BudgetAllocation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([budgetPeriodId, categoryId])
   @@index([budgetPeriodId])
   @@index([categoryId])
 }
