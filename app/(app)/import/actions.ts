@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { listAccounts } from "@/lib/accounts";
 import { previewCsv, parseCsvRows, type ColumnMapping } from "@/lib/csv";
-import { createImportBatch } from "@/lib/imports";
+import { applyCategoryRulesToBatch, createImportBatch } from "@/lib/imports";
 
 /**
  * Step 1 -> step 2 state. "upload" is the initial/error state (still
@@ -138,4 +139,31 @@ export async function createImportBatchAction(
   // page (the staged preview), not a refreshed version of the current one.
   // redirect() throws a NEXT_REDIRECT internally, which must propagate.
   redirect(`/import/${batch.id}`);
+}
+
+/**
+ * Plain (non-useActionState) server action for the staged-batch preview
+ * page's "Re-apply category rules" button (Task 13). Re-runs the
+ * household's current CategoryRules against every row of an
+ * already-existing batch — this is how a rule created (or edited/deleted)
+ * AFTER a batch was staged gets picked up, without re-uploading the CSV.
+ * No pending/error UI needed beyond the page simply refreshing with
+ * updated categories, mirroring deleteTransactionAction/archiveAccountAction.
+ */
+export async function reapplyCategoryRulesAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.householdId) {
+    return;
+  }
+
+  const batchId = String(formData.get("batchId") ?? "");
+  if (!batchId) {
+    return;
+  }
+
+  // applyCategoryRulesToBatch scopes its lookup by the batch's Account's
+  // householdId — the actual cross-household guard, not just this action
+  // reading session.householdId.
+  await applyCategoryRulesToBatch(session.householdId, batchId);
+  revalidatePath(`/import/${batchId}`);
 }

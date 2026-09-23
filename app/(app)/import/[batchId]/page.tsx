@@ -2,12 +2,18 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getImportBatch } from "@/lib/imports";
+import { reapplyCategoryRulesAction } from "../actions";
 
 /**
  * Staged import preview (Task 12's final step): shows every parsed row from
  * an ImportBatch, flagging any with a parseError rather than hiding it.
- * Nothing here writes to Transaction — committing the batch is a later
- * task (14). This page is read-only.
+ * Task 13 extends this with a "Category" column (the row's auto-matched
+ * category, or "Uncategorized") and a "Re-apply category rules" button, so
+ * a rule created after this batch already existed can be applied to it
+ * without re-uploading the CSV. Nothing here writes to Transaction —
+ * committing the batch is a later task (14), and there is still no manual
+ * per-row category override UI (that's also a later task). This page
+ * otherwise remains read-only.
  */
 export default async function ImportBatchPreviewPage({
   params,
@@ -49,6 +55,16 @@ export default async function ImportBatchPreviewPage({
         </p>
       </div>
 
+      <form action={reapplyCategoryRulesAction}>
+        <input type="hidden" name="batchId" value={batch.id} />
+        <button
+          type="submit"
+          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+        >
+          Re-apply category rules
+        </button>
+      </form>
+
       <div className="w-full max-w-4xl overflow-x-auto rounded-md border border-zinc-300 dark:border-zinc-700">
         <table className="w-full text-left text-sm">
           <thead>
@@ -56,6 +72,7 @@ export default async function ImportBatchPreviewPage({
               <th className="px-3 py-2 font-medium">Date</th>
               <th className="px-3 py-2 font-medium">Description</th>
               <th className="px-3 py-2 font-medium">Amount</th>
+              <th className="px-3 py-2 font-medium">Category</th>
               <th className="px-3 py-2 font-medium">Status</th>
             </tr>
           </thead>
@@ -79,6 +96,13 @@ export default async function ImportBatchPreviewPage({
                   {row.parsedAmount !== null
                     ? row.parsedAmount.toString()
                     : row.rawAmount || "—"}
+                </td>
+                <td className="px-3 py-2">
+                  {row.category ? (
+                    row.category.name
+                  ) : (
+                    <span className="text-zinc-500">Uncategorized</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   {row.parseError ? (

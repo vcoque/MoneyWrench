@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { parseCsvRows } from "@/lib/csv";
-import { createImportBatch, getImportBatch } from "@/lib/imports";
+import { createCategory } from "@/lib/categories";
+import { createCategoryRule } from "@/lib/category-rules";
+import {
+  applyCategoryRulesToBatch,
+  createImportBatch,
+  getImportBatch,
+} from "@/lib/imports";
 
 // Integration test against the real Postgres container (moneywrench-pg),
 // following the same pattern tests/accounts.test.ts/tests/transactions.test.ts
@@ -166,5 +172,172 @@ describe("imports household scoping and staging", () => {
     });
     expect(afterCount).toBe(beforeCount);
     expect(afterCount).toBe(0);
+  });
+});
+
+// Task 13: auto-categorization wired into createImportBatch, plus the
+// "re-apply category rules" flow for a batch that already exists.
+describe("import batch auto-categorization (Task 13)", () => {
+  const runId = `${Date.now()}-cat`;
+  const householdId = `test-household-cat-${runId}`;
+  const userId = `test-user-cat-${runId}`;
+  const accountId = `test-account-cat-${runId}`;
+
+  let coffeeCategoryId: string;
+  const batchIds: string[] = [];
+
+  beforeAll(async () => {
+    await db.household.create({
+      data: { id: householdId, name: "Household Cat", currency: "USD" },
+    });
+    await db.user.create({
+      data: {
+        id: userId,
+        householdId,
+        email: `import-cat-${runId}@example.com`,
+        name: "Cat User",
+      },
+    });
+    await db.account.create({
+      data: { id: accountId, householdId, name: "Checking", type: "checking" },
+    });
+    const category = await createCategory(householdId, "Coffee", "expense");
+    coffeeCategoryId = category.id;
+  });
+
+  afterAll(async () => {
+    await db.importRow.deleteMany({
+      where: { importBatchId: { in: batchIds } },
+    });
+    await db.importBatch.deleteMany({ where: { id: { in: batchIds } } });
+    await db.categoryRule.deleteMany({ where: { householdId } });
+    await db.category.deleteMany({ where: { householdId } });
+    await db.account.deleteMany({ where: { householdId } });
+    await db.user.deleteMany({ where: { householdId } });
+    await db.household.deleteMany({ where: { id: householdId } });
+  });
+
+  const csv = [
+    "Date,Description,Amount",
+    "2026-03-01,STARBUCKS STORE #123,4.50",
+    "2026-03-02,Random Grocery Store,25.00",
+  ].join("\n");
+  const mapping = { dateColumn: 0, descriptionColumn: 1, amountColumn: 2 };
+
+  it("createImportBatch auto-categorizes rows against rules that already exist", async () => {
+    await createCategoryRule(householdId, {
+      matchType: "contains",
+      pattern: "starbucks",
+      categoryId: coffeeCategoryId,
+      priority: 1,
+    });
+
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      householdId,
+      accountId,
+      userId,
+      "auto-categorize.csv",
+      rows,
+    );
+    batchIds.push(batch.id);
+
+    const fetched = await getImportBatch(householdId, batch.id);
+    expect(fetched).not.toBeNull();
+
+    const starbucksRow = fetched!.rows.find((r) =>
+      r.rawDescription.includes("STARBUCKS"),
+    );
+    const groceryRow = fetched!.rows.find((r) =>
+      r.rawDescription.includes("Grocery"),
+    );
+
+    expect(starbucksRow?.categoryId).toBe(coffeeCategoryId);
+    expect(starbucksRow?.category?.name).toBe("Coffee");
+    // No rule matches the grocery row — left uncategorized, not blocked
+    // and not defaulted to any fallback category.
+    expect(groceryRow?.categoryId).toBeNull();
+    expect(groceryRow?.category).toBeNull();
+  });
+
+  it("a rule created AFTER a batch already exists has no effect until re-applied, then applies correctly via applyCategoryRulesToBatch", async () => {
+    // No matching rule exists yet at batch-creation time.
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      householdId,
+      accountId,
+      userId,
+      "before-rule.csv",
+      rows,
+    );
+    batchIds.push(batch.id);
+
+    const beforeRule = await getImportBatch(householdId, batch.id);
+    const groceryRowBefore = beforeRule!.rows.find((r) =>
+      r.rawDescription.includes("Grocery"),
+    );
+    expect(groceryRowBefore?.categoryId).toBeNull();
+
+    // Create a household B, unrelated, to prove re-applying only touches
+    // this batch's own household's rules — not strictly required by the
+    // AC, but cheap insurance against a household-scoping regression here.
+    const groceryCategory = await createCategory(householdId, "Groceries", "expense");
+    await createCategoryRule(householdId, {
+      matchType: "contains",
+      pattern: "grocery",
+      categoryId: groceryCategory.id,
+      priority: 5,
+    });
+
+    const applied = await applyCategoryRulesToBatch(householdId, batch.id);
+    expect(applied).toBe(true);
+
+    const afterRule = await getImportBatch(householdId, batch.id);
+    const groceryRowAfter = afterRule!.rows.find((r) =>
+      r.rawDescription.includes("Grocery"),
+    );
+    const starbucksRowAfter = afterRule!.rows.find((r) =>
+      r.rawDescription.includes("STARBUCKS"),
+    );
+
+    expect(groceryRowAfter?.categoryId).toBe(groceryCategory.id);
+    // The pre-existing starbucks rule (from the earlier test) still applies
+    // too — re-applying re-evaluates every row, not just the newly-matched
+    // one.
+    expect(starbucksRowAfter?.categoryId).toBe(coffeeCategoryId);
+  });
+
+  it("applyCategoryRulesToBatch refuses a batch belonging to another household", async () => {
+    const otherHouseholdId = `test-household-cat-other-${runId}`;
+    const otherAccountId = `test-account-cat-other-${runId}`;
+    await db.household.create({
+      data: { id: otherHouseholdId, name: "Other Household", currency: "USD" },
+    });
+    await db.account.create({
+      data: {
+        id: otherAccountId,
+        householdId: otherHouseholdId,
+        name: "Other Checking",
+        type: "checking",
+      },
+    });
+
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      otherHouseholdId,
+      otherAccountId,
+      userId,
+      "other-household.csv",
+      rows,
+    );
+
+    // Household under test tries to re-apply rules to a batch it doesn't own.
+    const applied = await applyCategoryRulesToBatch(householdId, batch.id);
+    expect(applied).toBe(false);
+
+    await db.importRow.deleteMany({ where: { importBatchId: batch.id } });
+    await db.importBatch.deleteMany({ where: { id: batch.id } });
+    await db.account.deleteMany({ where: { householdId: otherHouseholdId } });
+    await db.household.deleteMany({ where: { id: otherHouseholdId } });
   });
 });
