@@ -107,6 +107,19 @@ enum CategoryRuleMatchType {
   regex
 }
 
+// Task 14 addition: distinguishes a row's category as either the result of
+// the last auto-categorization pass ("auto", the default — set by
+// createImportBatch/applyCategoryRulesToBatch, Task 13) or a user's manual
+// correction in the review UI ("manual", set by
+// lib/imports.ts's updateImportRowCategory). applyCategoryRulesToBatch skips
+// "manual" rows when re-applying rules, so a user's correction survives a
+// later "re-apply category rules" click instead of being silently
+// overwritten.
+enum CategorySource {
+  auto
+  manual
+}
+
 model Account {
   id          String      @id @default(cuid())
   householdId String
@@ -294,6 +307,10 @@ model ImportRow {
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
+  // See CategorySource above — "auto" (default) until a user manually
+  // corrects this row's category (Task 14), at which point it flips to
+  // "manual" and is skipped by future rule re-applies.
+  categorySource CategorySource @default(auto)
 
   isDuplicate            Boolean @default(false)
   includeInCommit        Boolean @default(true)

@@ -4,8 +4,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { listAccounts } from "@/lib/accounts";
+import { createCategoryRule } from "@/lib/category-rules";
 import { previewCsv, parseCsvRows, type ColumnMapping } from "@/lib/csv";
-import { applyCategoryRulesToBatch, createImportBatch } from "@/lib/imports";
+import {
+  applyCategoryRulesToBatch,
+  commitImportBatch,
+  createImportBatch,
+  setImportRowIncludeInCommit,
+  updateImportRowCategory,
+} from "@/lib/imports";
 
 /**
  * Step 1 -> step 2 state. "upload" is the initial/error state (still
@@ -166,4 +173,121 @@ export async function reapplyCategoryRulesAction(formData: FormData): Promise<vo
   // reading session.householdId.
   await applyCategoryRulesToBatch(session.householdId, batchId);
   revalidatePath(`/import/${batchId}`);
+}
+
+/**
+ * The default priority given to a CategoryRule created via this page's
+ * "save as rule" control (see correctImportRowCategoryAction below). Chosen
+ * low (0) so a saved correction — an `exact` match against one specific
+ * row's verbatim raw description, i.e. a precise, user-verified override —
+ * naturally outranks the household's other, broader rules: CategoryRuleForm
+ * (Task 13) suggests 10 as its placeholder starting point for user-authored
+ * rules, and lower numbers win first (see lib/categorize.ts). A rule this
+ * specific should virtually never lose to a more general one.
+ */
+const SAVED_CORRECTION_RULE_PRIORITY = 0;
+
+/**
+ * Plain (non-useActionState) server action for the staged-batch review
+ * page's per-row category correction form (Task 14). Sets the row's
+ * category (or clears it, when the "Uncategorized" option is chosen) and
+ * flips its `categorySource` to "manual" via lib/imports.ts's
+ * updateImportRowCategory — the real household-scoping + category-ownership
+ * guard, not just this action reading session.householdId. Also
+ * optionally creates a new CategoryRule from the correction when the
+ * "save as rule" checkbox was checked (an opt-in control alongside the
+ * category <select>, per this task's AC) — an `exact` match against this
+ * row's rawDescription pointed at the newly-chosen category, so future
+ * imports containing the same exact description auto-categorize the same
+ * way. No pending/error UI needed beyond the page refreshing with the
+ * updated category, mirroring reapplyCategoryRulesAction/
+ * deleteTransactionAction.
+ */
+export async function correctImportRowCategoryAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.householdId) {
+    return;
+  }
+
+  const batchId = String(formData.get("batchId") ?? "");
+  const rowId = String(formData.get("rowId") ?? "");
+  const categoryIdRaw = String(formData.get("categoryId") ?? "");
+  const categoryId = categoryIdRaw === "" ? null : categoryIdRaw;
+  const saveAsRule = formData.get("saveAsRule") === "1";
+
+  if (!batchId || !rowId) {
+    return;
+  }
+
+  const row = await updateImportRowCategory(session.householdId, rowId, categoryId);
+
+  if (row && saveAsRule && categoryId) {
+    await createCategoryRule(session.householdId, {
+      matchType: "exact",
+      pattern: row.rawDescription,
+      categoryId,
+      priority: SAVED_CORRECTION_RULE_PRIORITY,
+    });
+  }
+
+  revalidatePath(`/import/${batchId}`);
+}
+
+/**
+ * Plain server action for the staged-batch review page's per-row
+ * include/skip toggle (Task 14). `includeInCommit` arrives as the toggle
+ * button's hidden "next value" field (the standard no-JS toggle-button
+ * trick: the button's own form always submits the OPPOSITE of the row's
+ * current state). setImportRowIncludeInCommit refuses to touch a row with a
+ * parseError — those are "blocked", a distinct state from a deliberate
+ * skip, and the review UI doesn't render this toggle for them at all (see
+ * ImportPreviewTable).
+ */
+export async function setImportRowIncludeInCommitAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.householdId) {
+    return;
+  }
+
+  const batchId = String(formData.get("batchId") ?? "");
+  const rowId = String(formData.get("rowId") ?? "");
+  const includeInCommit = String(formData.get("includeInCommit") ?? "") === "true";
+
+  if (!batchId || !rowId) {
+    return;
+  }
+
+  await setImportRowIncludeInCommit(session.householdId, rowId, includeInCommit);
+  revalidatePath(`/import/${batchId}`);
+}
+
+/**
+ * Plain server action for the staged-batch review page's "Commit" button
+ * (Task 14's final step). Delegates the actual atomic create-Transactions
+ * + flag-batch-committed logic to lib/imports.ts's commitImportBatch (see
+ * its docstring for the double-commit guard). `session.userId` becomes
+ * every created Transaction's `createdByUserId` — there is no "system"
+ * user, so the household member who clicks Commit is recorded as having
+ * created these transactions, same as manual entry.
+ *
+ * Failure (batch not found / wrong household / already committed) is a
+ * silent no-op here, same as this page's other plain actions — in normal
+ * use the Commit button/forms above are never even rendered once
+ * `batch.committed` is true, so this path is only reachable via a genuine
+ * race (e.g. a double click), which correctly creates nothing extra.
+ */
+export async function commitImportBatchAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.householdId || !session.userId) {
+    return;
+  }
+
+  const batchId = String(formData.get("batchId") ?? "");
+  if (!batchId) {
+    return;
+  }
+
+  await commitImportBatch(session.householdId, batchId, session.userId);
+  revalidatePath(`/import/${batchId}`);
+  revalidatePath("/transactions");
 }

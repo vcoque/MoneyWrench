@@ -1,4 +1,4 @@
-import type { ImportBatch, ImportRow } from "@prisma/client";
+import type { ImportBatch, ImportRow, TransactionType } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { ParsedCsvRow } from "@/lib/csv";
 import { applyCategoryRules } from "@/lib/categorize";
@@ -120,6 +120,14 @@ export async function getImportBatch(
  * guard as getImportBatch. Callers MUST pass a householdId sourced from the
  * caller's own session. Returns false if the batch doesn't exist or
  * belongs to another household (nothing is written); true otherwise.
+ *
+ * Task 14 addition: rows the user has manually corrected
+ * (`categorySource: "manual"`, set by updateImportRowCategory below) are
+ * excluded from re-evaluation entirely — they're left out of the batch
+ * passed to applyCategoryRules, so they never appear in its result map and
+ * are never written to. Without this, a user's manual correction would get
+ * silently clobbered by anyone (re-)clicking "Re-apply category rules"
+ * after the fact.
  */
 export async function applyCategoryRulesToBatch(
   householdId: string,
@@ -129,7 +137,7 @@ export async function applyCategoryRulesToBatch(
     where: { id: batchId, account: { householdId } },
     select: {
       id: true,
-      rows: { select: { id: true, rawDescription: true } },
+      rows: { select: { id: true, rawDescription: true, categorySource: true } },
     },
   });
   if (!batch) {
@@ -137,7 +145,8 @@ export async function applyCategoryRulesToBatch(
   }
 
   const rules = await db.categoryRule.findMany({ where: { householdId } });
-  const categorization = applyCategoryRules(batch.rows, rules);
+  const autoRows = batch.rows.filter((row) => row.categorySource !== "manual");
+  const categorization = applyCategoryRules(autoRows, rules);
 
   const updates = Array.from(categorization.entries()).map(([id, categoryId]) =>
     db.importRow.update({ where: { id }, data: { categoryId } }),
@@ -147,4 +156,214 @@ export async function applyCategoryRulesToBatch(
   }
 
   return true;
+}
+
+/**
+ * Applies a user's manual category correction to a single staged row (Task
+ * 14's review UI), flipping `categorySource` to "manual" so a later
+ * "re-apply category rules" run (see applyCategoryRulesToBatch above) never
+ * overwrites it. `categoryId` may be null (uncategorizing a row is allowed,
+ * same as manual transaction entry).
+ *
+ * Scoped to the caller's household via the row's ImportBatch -> Account
+ * relation in the `updateMany` `where` clause itself — the real
+ * cross-household guard, since ImportRow has no householdId column of its
+ * own (same shape as getImportBatch/applyCategoryRulesToBatch). When
+ * `categoryId` is non-null, it's also independently re-validated as
+ * belonging to this household before anything is written — the category
+ * <select>'s options only ever list the household's own categories, but a
+ * tampered request could submit an arbitrary id, mirroring
+ * parseTransactionForm's category check.
+ *
+ * Returns the updated row (so callers like the "save correction as a rule"
+ * action can read its rawDescription without a second query), or null if
+ * the row doesn't exist, belongs to another household, or the given
+ * categoryId is invalid.
+ */
+export async function updateImportRowCategory(
+  householdId: string,
+  rowId: string,
+  categoryId: string | null,
+): Promise<ImportRow | null> {
+  if (categoryId !== null) {
+    const category = await db.category.findFirst({
+      where: { id: categoryId, householdId },
+      select: { id: true },
+    });
+    if (!category) {
+      return null;
+    }
+  }
+
+  const result = await db.importRow.updateMany({
+    where: { id: rowId, importBatch: { account: { householdId } } },
+    data: { categoryId, categorySource: "manual" },
+  });
+  if (result.count !== 1) {
+    return null;
+  }
+
+  return db.importRow.findUnique({ where: { id: rowId } });
+}
+
+/**
+ * Toggles a single staged row's `includeInCommit` flag (Task 14's per-row
+ * "skip this row" control) — the "explicitly skipped" mechanism referenced
+ * by this task's AC ("excluding any explicitly skipped" row from commit).
+ * Scoped to the caller's household the same way as updateImportRowCategory.
+ *
+ * Also guarded by `parseError: null` in the `where` clause itself: a row
+ * with a parse error can never produce a valid Transaction (it lacks a
+ * parsed date/amount) regardless of this flag, so it's "blocked" rather
+ * than "skippable" (a distinct state per the controller ruling) and this
+ * function refuses to touch it — defense in depth alongside the review UI
+ * not rendering the toggle for such rows at all.
+ *
+ * Returns whether a row was actually updated.
+ */
+export async function setImportRowIncludeInCommit(
+  householdId: string,
+  rowId: string,
+  includeInCommit: boolean,
+): Promise<boolean> {
+  const result = await db.importRow.updateMany({
+    where: {
+      id: rowId,
+      importBatch: { account: { householdId } },
+      parseError: null,
+    },
+    data: { includeInCommit },
+  });
+  return result.count === 1;
+}
+
+/** Thrown internally by commitImportBatch to force a transaction rollback
+ * (see below) — never leaks past this module; commitImportBatch always
+ * catches it and turns it into a `{ ok: false, error }` result. */
+class ImportBatchCommitError extends Error {}
+
+export type CommitImportBatchResult =
+  | { ok: true; transactionCount: number }
+  | { ok: false; error: string };
+
+/**
+ * Commits a staged ImportBatch to real Transaction rows (Task 14's final
+ * step). For every row where `includeInCommit === true` AND
+ * `parseError IS NULL` (uncategorized rows are allowed through — a null
+ * categoryId is a valid Transaction.categoryId by design, same as manual
+ * entry), creates one Transaction with `source: "import"` and links it back
+ * via `importBatchId` + `Transaction.categoryId`/`date`/`description` taken
+ * from the row, then stamps that row's `committedTransactionId`. Finally
+ * flags the batch `committed: true`.
+ *
+ * `ImportRow.parsedAmount` is a signed decimal (see lib/csv.ts's
+ * parseAmountValue — bank-export convention: negative = money out,
+ * non-negative = money in), whereas Transaction stores an always-positive
+ * `amount` plus a separate `type` (expense/income), same convention
+ * lib/transactions.ts already uses for manual entry. This function derives
+ * `type` from parsedAmount's sign and stores its absolute value, working on
+ * the string representation directly (not Decimal arithmetic) to stay
+ * consistent with the rest of this codebase's "amounts are decimal strings"
+ * convention.
+ *
+ * Atomicity / no-double-commit guard: everything (every Transaction create,
+ * every row's committedTransactionId stamp, and the batch's committed flag)
+ * happens inside one db.$transaction. The batch is first looked up scoped
+ * by `{ id, account: { householdId }, committed: false }` — a batch that's
+ * already committed (or doesn't belong to this household, or doesn't exist)
+ * fails this lookup and nothing is written. The batch is flagged committed
+ * at the END via an `updateMany` re-checking `committed: false`; if two
+ * commits race, Postgres's default READ COMMITTED behavior re-evaluates
+ * that WHERE clause against the row's latest state after acquiring its
+ * lock, so only the first transaction to reach this point actually flips
+ * the flag (`count === 1`) — the second one's `count` comes back 0, which
+ * this function treats as a hard failure and throws to roll back its own
+ * Transaction creates too. Net effect: a genuine race never leaves
+ * duplicate Transactions behind, even though both transactions' bodies ran
+ * to completion.
+ *
+ * Callers MUST pass a householdId sourced from the caller's own session, and
+ * a createdByUserId identifying whoever clicked "Commit" (Transaction's
+ * schema requires a non-null createdByUserId; there is no "system" user).
+ */
+export async function commitImportBatch(
+  householdId: string,
+  batchId: string,
+  createdByUserId: string,
+): Promise<CommitImportBatchResult> {
+  try {
+    const transactionCount = await db.$transaction(async (tx) => {
+      const batch = await tx.importBatch.findFirst({
+        where: { id: batchId, account: { householdId }, committed: false },
+        select: {
+          id: true,
+          accountId: true,
+          rows: {
+            where: { includeInCommit: true, parseError: null },
+            select: {
+              id: true,
+              categoryId: true,
+              parsedDate: true,
+              parsedAmount: true,
+              rawDescription: true,
+            },
+          },
+        },
+      });
+      if (!batch) {
+        throw new ImportBatchCommitError(
+          "Import batch not found, belongs to another household, or was already committed.",
+        );
+      }
+
+      for (const row of batch.rows) {
+        // Guaranteed non-null: the query above filters parseError: null,
+        // and parseCsvRows never leaves parsedDate/parsedAmount null
+        // without also setting parseError (see lib/csv.ts).
+        const signedAmount = row.parsedAmount!.toString();
+        const negative = signedAmount.startsWith("-");
+        const amount = negative ? signedAmount.slice(1) : signedAmount;
+        const type: TransactionType = negative ? "expense" : "income";
+
+        const created = await tx.transaction.create({
+          data: {
+            householdId,
+            accountId: batch.accountId,
+            categoryId: row.categoryId,
+            date: row.parsedDate!,
+            amount,
+            type,
+            description: row.rawDescription,
+            source: "import",
+            importBatchId: batch.id,
+            createdByUserId,
+          },
+        });
+
+        await tx.importRow.update({
+          where: { id: row.id },
+          data: { committedTransactionId: created.id },
+        });
+      }
+
+      const flagged = await tx.importBatch.updateMany({
+        where: { id: batch.id, committed: false },
+        data: { committed: true },
+      });
+      if (flagged.count !== 1) {
+        throw new ImportBatchCommitError(
+          "This batch was committed concurrently by another request.",
+        );
+      }
+
+      return batch.rows.length;
+    });
+
+    return { ok: true, transactionCount };
+  } catch (error) {
+    if (error instanceof ImportBatchCommitError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
 }
