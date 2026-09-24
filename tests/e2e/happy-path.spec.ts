@@ -91,7 +91,7 @@ test("sign up, budget, import, and track a savings goal end to end", async ({ pa
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign up" }).click();
-    await expect(page).toHaveURL(`${new URL(page.url()).origin}/`);
+    await expect(page).toHaveURL(`${new URL(page.url()).origin}/dashboard`);
   });
 
   await test.step("add an account", async () => {
