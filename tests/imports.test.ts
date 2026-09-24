@@ -758,3 +758,151 @@ describe("import row correction and commit (Task 14)", () => {
     expect(staged2!.rows[0].categorySource).toBe("auto");
   });
 });
+
+// Task 15: duplicate detection against existing Transactions on the same
+// account, applied automatically at staging time by createImportBatch.
+describe("import duplicate detection (Task 15)", () => {
+  const runId = `${Date.now()}-dup`;
+  const householdId = `test-household-dup-${runId}`;
+  const userId = `test-user-dup-${runId}`;
+  const accountId = `test-account-dup-${runId}`;
+  const otherAccountId = `test-account-dup-other-${runId}`;
+
+  const batchIds: string[] = [];
+
+  beforeAll(async () => {
+    await db.household.create({
+      data: { id: householdId, name: "Household Dup", currency: "USD" },
+    });
+    await db.user.create({
+      data: {
+        id: userId,
+        householdId,
+        email: `import-dup-${runId}@example.com`,
+        name: "Dup User",
+      },
+    });
+    await db.account.create({
+      data: { id: accountId, householdId, name: "Checking", type: "checking" },
+    });
+    await db.account.create({
+      data: { id: otherAccountId, householdId, name: "Savings", type: "savings" },
+    });
+
+    // A pre-existing manual Transaction that a later staged row will match.
+    await db.transaction.create({
+      data: {
+        householdId,
+        accountId,
+        date: new Date("2026-06-01T00:00:00.000Z"),
+        amount: "42.50",
+        type: "expense",
+        description: "Electric Company",
+        source: "manual",
+        createdByUserId: userId,
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await db.transaction.deleteMany({ where: { householdId } });
+    await db.importRow.deleteMany({ where: { importBatchId: { in: batchIds } } });
+    await db.importBatch.deleteMany({ where: { id: { in: batchIds } } });
+    await db.account.deleteMany({ where: { householdId } });
+    await db.user.deleteMany({ where: { householdId } });
+    await db.household.deleteMany({ where: { id: householdId } });
+  });
+
+  const mapping = { dateColumn: 0, descriptionColumn: 1, amountColumn: 2 };
+
+  it("flags a staged row matching an existing transaction and excludes it from commit by default", async () => {
+    const csv = [
+      "Date,Description,Amount",
+      "2026-06-01,Electric Company,-42.50",
+      "2026-06-02,Coffee Shop,-4.50",
+    ].join("\n");
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(householdId, accountId, userId, "dup.csv", rows);
+    batchIds.push(batch.id);
+
+    const staged = await getImportBatch(householdId, batch.id);
+    const electricRow = staged!.rows.find((r) => r.rawDescription === "Electric Company")!;
+    const coffeeRow = staged!.rows.find((r) => r.rawDescription === "Coffee Shop")!;
+
+    expect(electricRow.isDuplicate).toBe(true);
+    expect(electricRow.includeInCommit).toBe(false);
+    expect(coffeeRow.isDuplicate).toBe(false);
+    expect(coffeeRow.includeInCommit).toBe(true);
+
+    // Committing as-is only creates a Transaction for the non-duplicate row.
+    const result = await commitImportBatch(householdId, batch.id, userId);
+    expect(result).toEqual({ ok: true, transactionCount: 1 });
+
+    const committed = await getImportBatch(householdId, batch.id);
+    const committedElectricRow = committed!.rows.find(
+      (r) => r.rawDescription === "Electric Company",
+    )!;
+    const committedCoffeeRow = committed!.rows.find(
+      (r) => r.rawDescription === "Coffee Shop",
+    )!;
+    expect(committedElectricRow.committedTransactionId).toBeNull();
+    expect(committedCoffeeRow.committedTransactionId).not.toBeNull();
+  });
+
+  it("a user can override a flagged duplicate via the existing include/skip toggle and commit it anyway", async () => {
+    const csv = ["Date,Description,Amount", "2026-06-01,Electric Company,-42.50"].join("\n");
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      householdId,
+      accountId,
+      userId,
+      "dup-override.csv",
+      rows,
+    );
+    batchIds.push(batch.id);
+
+    const staged = await getImportBatch(householdId, batch.id);
+    const row = staged!.rows[0];
+    expect(row.isDuplicate).toBe(true);
+    expect(row.includeInCommit).toBe(false);
+
+    const toggled = await setImportRowIncludeInCommit(householdId, row.id, true);
+    expect(toggled).toBe(true);
+
+    const result = await commitImportBatch(householdId, batch.id, userId);
+    expect(result).toEqual({ ok: true, transactionCount: 1 });
+  });
+
+  it("does not flag a same-description-and-amount row on a DIFFERENT account", async () => {
+    const csv = ["Date,Description,Amount", "2026-06-01,Electric Company,-42.50"].join("\n");
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      householdId,
+      otherAccountId,
+      userId,
+      "dup-other-account.csv",
+      rows,
+    );
+    batchIds.push(batch.id);
+
+    const staged = await getImportBatch(householdId, batch.id);
+    expect(staged!.rows[0].isDuplicate).toBe(false);
+    expect(staged!.rows[0].includeInCommit).toBe(true);
+  });
+
+  it("does not flag a row with the same date/description but a different amount", async () => {
+    const csv = ["Date,Description,Amount", "2026-06-01,Electric Company,-99.99"].join("\n");
+    const rows = parseCsvRows(csv, mapping);
+    const batch = await createImportBatch(
+      householdId,
+      accountId,
+      userId,
+      "dup-diff-amount.csv",
+      rows,
+    );
+    batchIds.push(batch.id);
+
+    const staged = await getImportBatch(householdId, batch.id);
+    expect(staged!.rows[0].isDuplicate).toBe(false);
+  });
+});

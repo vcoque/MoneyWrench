@@ -2,6 +2,7 @@ import type { ImportBatch, ImportRow, TransactionType } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { ParsedCsvRow } from "@/lib/csv";
 import { applyCategoryRules } from "@/lib/categorize";
+import { findDuplicateRowIds } from "@/lib/duplicates";
 
 export type ImportRowWithCategory = ImportRow & {
   category: { id: string; name: string } | null;
@@ -24,10 +25,15 @@ export type ImportBatchWithRows = ImportBatch & { rows: ImportRowWithCategory[] 
  * CategoryRules (lib/category-rules.ts) are applied to them in the same
  * transaction (lib/categorize.ts's pure applyCategoryRules), so a newly
  * created batch already reflects current rules rather than requiring a
- * separate manual step. `isDuplicate`/`includeInCommit`/
- * `committedTransactionId` are still left at their schema defaults (false /
- * true / null) for every row — those fields belong to later tasks (14-15).
- * Nothing is written to Transaction.
+ * separate manual step. Further extended by Task 15: each row is also
+ * checked against the account's existing Transactions (lib/duplicates.ts's
+ * pure findDuplicateRowIds) — a match flags `isDuplicate: true` and flips
+ * `includeInCommit` to false, so a likely duplicate is excluded from commit
+ * by default; the review UI's existing per-row include/skip toggle (Task
+ * 14) is what lets a user override that and include it anyway.
+ * `committedTransactionId` is still left at its schema default (null) for
+ * every row — that's only ever set by commitImportBatch. Nothing is
+ * written to Transaction.
  */
 export async function createImportBatch(
   householdId: string,
@@ -61,7 +67,7 @@ export async function createImportBatch(
           parsedAmount: row.parsedAmount,
           parseError: row.parseError,
         })),
-        select: { id: true, rawDescription: true },
+        select: { id: true, rawDescription: true, parsedDate: true, parsedAmount: true },
       });
 
       const rules = await tx.categoryRule.findMany({ where: { householdId } });
@@ -75,6 +81,31 @@ export async function createImportBatch(
               tx.importRow.update({ where: { id }, data: { categoryId } }),
             ),
         );
+      }
+
+      // Task 15: flag likely duplicates against this account's existing
+      // Transactions. `existingTransactions` is intentionally scoped to
+      // `accountId` alone (not also `householdId`) — accountId was already
+      // verified above to belong to this household, and Account has no
+      // other household's rows to leak.
+      const existingTransactions = await tx.transaction.findMany({
+        where: { accountId },
+        select: { date: true, amount: true, type: true, description: true },
+      });
+      const duplicateIds = findDuplicateRowIds(
+        createdRows.map((row) => ({
+          id: row.id,
+          parsedDate: row.parsedDate,
+          parsedAmount: row.parsedAmount?.toString() ?? null,
+          rawDescription: row.rawDescription,
+        })),
+        existingTransactions,
+      );
+      if (duplicateIds.size > 0) {
+        await tx.importRow.updateMany({
+          where: { id: { in: Array.from(duplicateIds) } },
+          data: { isDuplicate: true, includeInCommit: false },
+        });
       }
     }
 

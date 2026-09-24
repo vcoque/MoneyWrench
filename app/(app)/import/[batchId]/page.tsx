@@ -12,13 +12,20 @@ import {
 
 /**
  * Staged import review + commit page (Task 12's final step, extended by
- * Task 13 with auto-categorization display, and by Task 14 — this task —
- * into a genuinely editable review UI). Still a server component: every
- * per-row control below (category correction, include/skip toggle, the
- * commit button itself) is a plain `<form action={...}>` posting to a
- * server action, so no client-side interactivity/JS is required for any of
- * it — mirrors the rest of this app's list pages (delete/archive buttons,
- * "Re-apply category rules").
+ * Task 13 with auto-categorization display, by Task 14 into a genuinely
+ * editable review UI, and by Task 15 with a "likely duplicate" indicator).
+ * Still a server component: every per-row control below (category
+ * correction, include/skip toggle, the commit button itself) is a plain
+ * `<form action={...}>` posting to a server action, so no client-side
+ * interactivity/JS is required for any of it — mirrors the rest of this
+ * app's list pages (delete/archive buttons, "Re-apply category rules").
+ *
+ * A row flagged `isDuplicate` (Task 15's createImportBatch check against
+ * this account's existing Transactions) starts with `includeInCommit:
+ * false` already set — there's no separate duplicate-specific control here;
+ * it reuses Task 14's existing per-row include/skip toggle, so a user who
+ * confirms it's a legitimate repeat just clicks "Include" like they would
+ * for any other skipped row.
  *
  * Once `batch.committed` is true, all of the above forms/controls disappear
  * — editing a row's category or include/skip state after its Transaction
@@ -53,6 +60,7 @@ export default async function ImportBatchPreviewPage({
   const categories = await listCategories(session.householdId);
 
   const blockedCount = batch.rows.filter((row) => row.parseError).length;
+  const duplicateCount = batch.rows.filter((row) => row.isDuplicate).length;
   const skippedCount = batch.rows.filter(
     (row) => !row.parseError && !row.includeInCommit,
   ).length;
@@ -70,6 +78,8 @@ export default async function ImportBatchPreviewPage({
           {batch.filename} — {batch.rows.length}{" "}
           {batch.rows.length === 1 ? "row" : "rows"}
           {blockedCount > 0 && `, ${blockedCount} blocked`}
+          {duplicateCount > 0 &&
+            `, ${duplicateCount} likely ${duplicateCount === 1 ? "duplicate" : "duplicates"}`}
           {skippedCount > 0 && `, ${skippedCount} skipped`}.{" "}
           {batch.committed
             ? "This batch has been committed."
@@ -126,7 +136,11 @@ export default async function ImportBatchPreviewPage({
               <tr
                 key={row.id}
                 className={`border-b border-zinc-200 align-top last:border-0 dark:border-zinc-800 ${
-                  row.parseError ? "bg-red-50 dark:bg-red-950/30" : ""
+                  row.parseError
+                    ? "bg-red-50 dark:bg-red-950/30"
+                    : row.isDuplicate
+                      ? "bg-amber-50 dark:bg-amber-950/30"
+                      : ""
                 }`}
               >
                 <td className="px-3 py-2">
@@ -222,6 +236,10 @@ export default async function ImportBatchPreviewPage({
                       className="font-medium text-red-600 dark:text-red-400"
                     >
                       {row.parseError} — fix in a future CSV re-upload
+                    </span>
+                  ) : row.isDuplicate ? (
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      Likely duplicate — excluded by default
                     </span>
                   ) : (
                     <span className="text-zinc-500">OK</span>
