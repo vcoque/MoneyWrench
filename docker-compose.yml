@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: moneywrench
+      POSTGRES_DB: moneywrench
+    # Host port 5433, not 5432 — a local dev Postgres container
+    # (moneywrench-pg, per README.md) commonly already owns 5432 on the
+    # host. The app service below always talks to `db:5432` over the
+    # compose network regardless of this host mapping.
+    ports:
+      - "5433:5432"
+    volumes:
+      - moneywrench-pg-docker-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:moneywrench@db:5432/moneywrench
+      # Preview-only default — override with a real secret (`npx auth
+      # secret`) via a `.env` file or `AUTH_SECRET=... docker compose up`
+      # for anything beyond a local preview.
+      AUTH_SECRET: ${AUTH_SECRET:-docker-preview-insecure-secret-change-me}
+    ports:
+      - "3000:3000"
+
+volumes:
+  moneywrench-pg-docker-data:

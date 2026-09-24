@@ -63,6 +63,28 @@ Next.js (App Router, TypeScript) · Prisma + Postgres · Auth.js (credentials)
    Visit `http://localhost:3000` and sign up (the seed data isn't tied to a
    password-login-ready account — sign up fresh to get a working session).
 
+### Or: preview the whole stack in Docker
+
+`docker-compose.yml` runs the app *and* its own Postgres together — no
+local Node/Postgres setup needed, and it never touches the `moneywrench-pg`
+container from step 3 above (its own Postgres is published on host port
+**5433**, not 5432, specifically to avoid that clash).
+
+```sh
+docker compose up --build
+```
+
+Migrations are applied automatically on container start (see the
+`Dockerfile`'s `CMD`). Visit `http://localhost:3000` and sign up.
+
+> If your Docker setup hits `DNS: transient error` from `apk add` during
+> the build, BuildKit's isolated build network can't resolve DNS in your
+> environment — fall back to the classic builder:
+> `DOCKER_BUILDKIT=0 docker compose up --build`.
+
+Tear down with `docker compose down` (add `-v` to also delete its
+Postgres volume and start fully fresh next time).
+
 ## Running tests
 
 ```sh
