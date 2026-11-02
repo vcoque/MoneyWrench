@@ -1,26 +1,155 @@
 @import "tailwindcss";
 
+/* Design tokens — from the "Investment Portfolio" Claude Design canvas.
+   The design is light-only: the markup has no `dark:` utilities, and the
+   `dark` variant is pinned to an explicit `.dark` class (which nothing sets)
+   so none sneak back in following the OS color scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Neutrals */
+  --color-page: #f4f5f2;
+  --color-surface: #ffffff;
+  --color-ink: #12161c;
+  --color-muted: #5a6270;
+  --color-subtle: #8a93a0;
+  --color-line: #e3e5e0;
+  --color-line-soft: #eef0ec;
+  --color-line-strong: #daddd6;
+
+  /* Dark chrome (sidebar, hero) */
+  --color-chrome: #12161c;
+  --color-chrome-raised: #1f2631;
+  --color-chrome-line: #2a323e;
+  --color-chrome-text: #c9ced6;
+  --color-chrome-muted: #9aa3af;
+
+  /* Accent + status */
+  --color-accent: #0b5e4f;
+  --color-accent-strong: #073f35;
+  --color-accent-soft: #ddf3ee;
+  --color-accent-bright: #5eead4;
+  --color-positive: #0e7c66;
+  --color-warn: #a3400f;
+  --color-warn-strong: #9a3412;
+  --color-warn-soft: #fbe7dc;
+
+  /* Chart palette */
+  --color-chart-navy: #1e3a8a;
+  --color-chart-sky: #60a5fa;
+  --color-chart-teal: #0e7c66;
+  --color-chart-amber: #f59e0b;
+  --color-chart-rust: #9a3412;
+  --color-chart-grey: #b8c0cc;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* In the base layer so utilities (text-white, text-chrome-text, …) on links
+   win — unlayered rules would beat every utility regardless of specificity. */
+@layer base {
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-strong);
+  }
+}
+
+/* Money / figures: mono with tabular digits so columns line up. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@layer components {
+  /* ----- Page structure ----- */
+  .page {
+    @apply mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8;
+  }
+  .page-auth {
+    @apply mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-4 py-10;
+  }
+  .page-head {
+    @apply flex flex-col gap-1;
+  }
+  .page-title {
+    @apply text-[28px] font-extrabold tracking-[-0.02em] text-ink;
+  }
+  .page-lede {
+    @apply max-w-prose text-sm text-muted;
+  }
+
+  /* ----- Surfaces ----- */
+  .panel {
+    @apply flex w-full flex-col gap-3 rounded-[14px] border border-line bg-surface p-4 sm:p-5;
+  }
+  /* A form/list panel nested inside another panel shouldn't draw a second card. */
+  .panel .panel {
+    @apply rounded-none border-0 bg-transparent p-0;
+  }
+  .panel-title {
+    @apply text-base font-bold text-ink;
+  }
+  .row-card {
+    @apply flex flex-col gap-2 rounded-[10px] border border-line-soft bg-page/60 px-3 py-3 text-sm;
+  }
+  .table-wrap {
+    @apply w-full overflow-x-auto rounded-[14px] border border-line bg-surface;
+  }
+
+  /* ----- Type helpers ----- */
+  .label {
+    @apply text-sm font-semibold text-ink;
+  }
+  .hint {
+    @apply text-sm text-muted;
+  }
+  .error-text {
+    @apply text-sm font-medium text-warn-strong;
+  }
+
+  /* ----- Controls ----- */
+  .input {
+    @apply min-h-11 rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent;
+  }
+  .btn {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-chrome px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-chrome-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-line-strong bg-surface px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-page focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .link-quiet {
+    @apply inline-flex min-h-11 items-center text-sm font-semibold text-accent underline-offset-2 hover:underline;
+  }
+  .link-danger {
+    @apply inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-warn-strong underline-offset-2 hover:underline;
+  }
+  .chip {
+    @apply inline-flex w-fit items-center rounded-lg bg-accent-soft px-2 py-1 text-xs font-bold text-accent;
+  }
+
+  /* ----- Progress bar ----- */
+  .meter {
+    @apply h-2 w-full overflow-hidden rounded-full bg-line-soft;
+  }
+
+  /* ----- Tables ----- */
+  .th {
+    @apply border-b border-line px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-muted;
+  }
+  .td {
+    @apply border-b border-line-soft px-4 py-3 text-sm text-ink;
+  }
 }

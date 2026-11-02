@@ -68,28 +68,24 @@ function BudgetRow({
   const difference = Math.abs(planned - actual);
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-zinc-300 px-3 py-3 text-sm dark:border-zinc-700">
+    <li className="row-card">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{label}</span>
-        <span className="text-zinc-500">
+        <span className="num text-muted">
           {formatCurrency(actual)} / {formatCurrency(planned)}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+      <div className="meter">
         <div
           className={`h-full rounded-full ${
-            isOver
-              ? "bg-red-600 dark:bg-red-500"
-              : "bg-emerald-600 dark:bg-emerald-500"
+            isOver ? "bg-warn-strong" : "bg-positive"
           }`}
           style={{ width: `${percent}%` }}
         />
       </div>
       <span
-        className={`text-xs font-medium ${
-          isOver
-            ? "text-red-700 dark:text-red-400"
-            : "text-emerald-700 dark:text-emerald-400"
+        className={`num text-xs font-semibold ${
+          isOver ? "text-warn-strong" : "text-accent"
         }`}
       >
         {isOver
@@ -136,7 +132,8 @@ function OverallBudgetItem({
   // surpassed) — the visual indicator is flipped so "under" (not yet at
   // target) is the neutral/in-progress state rather than a false "over
   // budget" warning on a savings goal.
-  const isOver = targetType === "spend_limit" ? actual > target : actual < target;
+  const isOver =
+    targetType === "spend_limit" ? actual > target : actual < target;
   const overLabel = targetType === "spend_limit" ? "over" : "remaining";
   const underLabel = targetType === "spend_limit" ? "left" : "surplus";
 
@@ -152,7 +149,9 @@ function OverallBudgetItem({
   );
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const session = await auth();
 
   // Belt-and-suspenders: middleware already protects this route (see
@@ -166,7 +165,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const now = new Date();
   const yearParam = Number(params.year);
   const monthParam = Number(params.month);
-  const year = Number.isInteger(yearParam) && yearParam > 0 ? yearParam : now.getFullYear();
+  const year =
+    Number.isInteger(yearParam) && yearParam > 0
+      ? yearParam
+      : now.getFullYear();
   const month =
     Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
       ? monthParam
@@ -177,7 +179,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // state to land on (a freshly-opened, still-empty period) rather than an
   // error condition: getBudgetDashboard below just returns an empty
   // categories array for it.
-  const period = await getOrCreateBudgetPeriod(session.householdId, year, month);
+  const period = await getOrCreateBudgetPeriod(
+    session.householdId,
+    year,
+    month,
+  );
   const dashboard = await getBudgetDashboard(session.householdId, period);
 
   const prev = shiftMonth(year, month, -1);
@@ -185,37 +191,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-10 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Dashboard
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+    <main className="page">
+      <div className="page-head">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-lede">
           Planned vs. actual for the month, per category and overall.
         </p>
       </div>
 
       <div className="flex w-full max-w-md items-center justify-between gap-3">
-        <a
-          href={monthHref(prev.year, prev.month)}
-          className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-        >
+        <a href={monthHref(prev.year, prev.month)} className="link-quiet">
           ← Previous month
         </a>
-        <span className="text-lg font-medium">{monthLabel}</span>
-        <a
-          href={monthHref(next.year, next.month)}
-          className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-        >
+        <span className="num text-base font-semibold">{monthLabel}</span>
+        <a href={monthHref(next.year, next.month)} className="link-quiet">
           Next month →
         </a>
       </div>
 
       {dashboard.overall && (
-        <div className="flex w-full max-w-md flex-col gap-2">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Overall
-          </h2>
+        <div className="panel">
+          <h2 className="panel-title">Overall</h2>
           <ul className="flex flex-col gap-2">
             <OverallBudgetItem
               target={Number(dashboard.overall.target)}
@@ -226,13 +222,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       )}
 
-      <div className="flex w-full max-w-md flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Categories
-        </h2>
+      <div className="panel">
+        <h2 className="panel-title">Categories</h2>
 
         {dashboard.categories.length === 0 ? (
-          <p className="text-sm text-zinc-500">
+          <p className="hint">
             No planned or actual amounts for this period yet.
           </p>
         ) : (

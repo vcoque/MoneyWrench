@@ -1,6 +1,9 @@
 import { auth } from "@/lib/auth";
 import { listCategories } from "@/lib/categories";
-import { getAllocationsForPeriod, getOrCreateBudgetPeriod } from "@/lib/budgets";
+import {
+  getAllocationsForPeriod,
+  getOrCreateBudgetPeriod,
+} from "@/lib/budgets";
 import OverallTargetForm from "./overall-target-form";
 import AllocationsForm from "./allocations-form";
 import { copyLastMonthAction } from "./actions";
@@ -41,7 +44,10 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
   const now = new Date();
   const yearParam = Number(params.year);
   const monthParam = Number(params.month);
-  const year = Number.isInteger(yearParam) && yearParam > 0 ? yearParam : now.getFullYear();
+  const year =
+    Number.isInteger(yearParam) && yearParam > 0
+      ? yearParam
+      : now.getFullYear();
   const month =
     Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
       ? monthParam
@@ -53,7 +59,11 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
   // makes "create a budget period for a month" happen implicitly, just by
   // navigating here: visiting /budget?year=2026&month=4 for the first time
   // creates the April 2026 period.
-  const period = await getOrCreateBudgetPeriod(session.householdId, year, month);
+  const period = await getOrCreateBudgetPeriod(
+    session.householdId,
+    year,
+    month,
+  );
 
   const [categories, allocations] = await Promise.all([
     listCategories(session.householdId),
@@ -78,40 +88,29 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
   const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-10 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Budget
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+    <main className="page">
+      <div className="page-head">
+        <h1 className="page-title">Budget</h1>
+        <p className="page-lede">
           Set an overall target and allocate planned amounts to categories for
           the month.
         </p>
       </div>
 
-      <div className="flex w-full max-w-md flex-col gap-3">
+      <div className="panel">
         <div className="flex items-center justify-between gap-3">
-          <a
-            href={monthHref(prev.year, prev.month)}
-            className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-          >
+          <a href={monthHref(prev.year, prev.month)} className="link-quiet">
             ← Previous month
           </a>
           <span className="text-lg font-medium">{monthLabel}</span>
-          <a
-            href={monthHref(next.year, next.month)}
-            className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-          >
+          <a href={monthHref(next.year, next.month)} className="link-quiet">
             Next month →
           </a>
         </div>
 
         <form method="get" className="flex items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label
-              htmlFor="jump-year"
-              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
+            <label htmlFor="jump-year" className="label">
               Year
             </label>
             <input
@@ -119,14 +118,11 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
               name="year"
               type="number"
               defaultValue={year}
-              className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-24 input"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label
-              htmlFor="jump-month"
-              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
+            <label htmlFor="jump-month" className="label">
               Month
             </label>
             <input
@@ -136,22 +132,17 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
               min={1}
               max={12}
               defaultValue={month}
-              className="w-20 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-20 input"
             />
           </div>
-          <button
-            type="submit"
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
-          >
+          <button type="submit" className="btn-secondary">
             Go
           </button>
         </form>
       </div>
 
-      <div className="flex w-full max-w-md flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Overall target
-        </h2>
+      <div className="panel">
+        <h2 className="panel-title">Overall target</h2>
         <OverallTargetForm
           year={year}
           month={month}
@@ -164,17 +155,12 @@ export default async function BudgetPage({ searchParams }: BudgetPageProps) {
         />
       </div>
 
-      <div className="flex w-full max-w-md flex-col gap-2">
+      <div className="panel">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Category allocations
-          </h2>
+          <h2 className="panel-title">Category allocations</h2>
           <form action={copyLastMonthAction}>
             <input type="hidden" name="budgetPeriodId" value={period.id} />
-            <button
-              type="submit"
-              className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-            >
+            <button type="submit" className="link-quiet">
               Copy last month
             </button>
           </form>

@@ -15,12 +15,9 @@ export default function GoalForm() {
   );
 
   return (
-    <form action={formAction} className="flex w-full max-w-md flex-col gap-3">
+    <form action={formAction} className="panel">
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="goal-name"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="goal-name" className="label">
           Goal name
         </label>
         <input
@@ -28,15 +25,12 @@ export default function GoalForm() {
           name="name"
           required
           placeholder="e.g. Vacation Fund"
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="goal-target-amount"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="goal-target-amount" className="label">
           Target amount
         </label>
         <input
@@ -45,20 +39,16 @@ export default function GoalForm() {
           required
           inputMode="decimal"
           placeholder="e.g. 2000.00"
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-      >
+      <button type="submit" disabled={pending} className="btn">
         {pending ? "Adding…" : "Add goal"}
       </button>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {state.error}
         </p>
       )}

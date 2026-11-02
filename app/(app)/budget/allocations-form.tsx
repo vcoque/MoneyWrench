@@ -27,11 +27,11 @@ export default function AllocationsForm({
   );
 
   return (
-    <form action={formAction} className="flex w-full max-w-md flex-col gap-3">
+    <form action={formAction} className="panel">
       <input type="hidden" name="budgetPeriodId" value={budgetPeriodId} />
 
       {categories.length === 0 ? (
-        <p className="text-sm text-zinc-500">
+        <p className="hint">
           No categories yet — add some on the Categories page first.
         </p>
       ) : (
@@ -41,10 +41,7 @@ export default function AllocationsForm({
               key={category.id}
               className="flex items-center justify-between gap-3"
             >
-              <label
-                htmlFor={`amount-${category.id}`}
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
+              <label htmlFor={`amount-${category.id}`} className="label">
                 {category.name}
               </label>
               <input
@@ -53,7 +50,7 @@ export default function AllocationsForm({
                 inputMode="decimal"
                 placeholder="0.00"
                 defaultValue={category.amount}
-                className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                className="w-32 input"
               />
             </li>
           ))}
@@ -63,13 +60,13 @@ export default function AllocationsForm({
       <button
         type="submit"
         disabled={pending || categories.length === 0}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+        className="btn"
       >
         {pending ? "Saving…" : "Save allocations"}
       </button>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {state.error}
         </p>
       )}

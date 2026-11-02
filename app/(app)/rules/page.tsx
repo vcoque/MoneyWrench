@@ -50,24 +50,20 @@ export default async function RulesPage({ searchParams }: RulesPageProps) {
     : undefined;
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-10 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Category rules
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
-          Rules automatically categorize imported transactions by matching
-          their description. New import batches apply your current rules
-          right away; you can also re-apply rules to an already-staged
-          batch from its preview page.
+    <main className="page">
+      <div className="page-head">
+        <h1 className="page-title">Category rules</h1>
+        <p className="page-lede">
+          Rules automatically categorize imported transactions by matching their
+          description. New import batches apply your current rules right away;
+          you can also re-apply rules to an already-staged batch from its
+          preview page.
         </p>
       </div>
 
       {editingRule ? (
-        <div className="flex w-full max-w-md flex-col gap-2">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Edit rule
-          </h2>
+        <div className="panel">
+          <h2 className="panel-title">Edit rule</h2>
           <CategoryRuleForm
             action={updateCategoryRuleAction}
             categories={categoryOptions}
@@ -92,47 +88,39 @@ export default async function RulesPage({ searchParams }: RulesPageProps) {
         />
       )}
 
-      <div className="flex w-full max-w-2xl flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="panel">
+        <h2 className="panel-title">
           {rules.length} {rules.length === 1 ? "rule" : "rules"} (evaluated in
           this order)
         </h2>
 
         {rules.length === 0 ? (
-          <p className="text-sm text-zinc-500">No rules yet.</p>
+          <p className="hint">No rules yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {rules.map((rule) => (
               <li
                 key={rule.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                className="row-card flex-row items-center justify-between gap-3"
               >
                 <div className="flex flex-col">
                   <span>
-                    <span className="font-mono text-zinc-500">
+                    <span className="font-mono text-muted">
                       #{rule.priority}
                     </span>{" "}
                     {CATEGORY_RULE_MATCH_TYPE_LABELS[rule.matchType]} &quot;
                     {rule.pattern}&quot;
                   </span>
-                  <span className="text-zinc-500">
-                    → {rule.category.name}
-                  </span>
+                  <span className="text-muted">→ {rule.category.name}</span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <a
-                    href={`/rules?edit=${rule.id}`}
-                    className="text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-                  >
+                  <a href={`/rules?edit=${rule.id}`} className="link-quiet">
                     Edit
                   </a>
                   <form action={deleteCategoryRuleAction}>
                     <input type="hidden" name="ruleId" value={rule.id} />
-                    <button
-                      type="submit"
-                      className="text-red-600 underline hover:no-underline dark:text-red-400"
-                    >
+                    <button type="submit" className="link-danger">
                       Delete
                     </button>
                   </form>

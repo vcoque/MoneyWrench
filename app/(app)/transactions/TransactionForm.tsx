@@ -1,7 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS } from "@/lib/transaction-types";
+import {
+  TRANSACTION_TYPES,
+  TRANSACTION_TYPE_LABELS,
+} from "@/lib/transaction-types";
 import type { TransactionFormState } from "./actions";
 
 const initialState: TransactionFormState = {};
@@ -53,16 +56,13 @@ export default function TransactionForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex w-full max-w-md flex-col gap-3">
+    <form action={formAction} className="panel">
       {defaultValues?.id && (
         <input type="hidden" name="transactionId" value={defaultValues.id} />
       )}
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-date"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-date" className="label">
           Date
         </label>
         <input
@@ -71,15 +71,12 @@ export default function TransactionForm({
           type="date"
           required
           defaultValue={defaultValues?.date}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-account"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-account" className="label">
           Account
         </label>
         <select
@@ -87,7 +84,7 @@ export default function TransactionForm({
           name="accountId"
           required
           defaultValue={defaultValues?.accountId ?? ""}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           <option value="" disabled>
             Select an account
@@ -101,10 +98,7 @@ export default function TransactionForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-amount"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-amount" className="label">
           Amount
         </label>
         <input
@@ -116,15 +110,12 @@ export default function TransactionForm({
           required
           placeholder="0.00"
           defaultValue={defaultValues?.amount}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-type"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-type" className="label">
           Type
         </label>
         <select
@@ -132,7 +123,7 @@ export default function TransactionForm({
           name="type"
           required
           defaultValue={defaultValues?.type ?? TRANSACTION_TYPES[0]}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           {TRANSACTION_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -143,10 +134,7 @@ export default function TransactionForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-description"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-description" className="label">
           Description
         </label>
         <input
@@ -155,22 +143,19 @@ export default function TransactionForm({
           required
           placeholder="e.g. Weekly groceries"
           defaultValue={defaultValues?.description}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="transaction-category"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="transaction-category" className="label">
           Category
         </label>
         <select
           id="transaction-category"
           name="categoryId"
           defaultValue={defaultValues?.categoryId ?? ""}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           <option value="">Uncategorized</option>
           {categories.map((category) => (
@@ -182,26 +167,19 @@ export default function TransactionForm({
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-        >
+        <button type="submit" disabled={pending} className="btn">
           {pending ? pendingLabel : submitLabel}
         </button>
 
         {onCancelHref && (
-          <a
-            href={onCancelHref}
-            className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-          >
+          <a href={onCancelHref} className="link-quiet">
             Cancel
           </a>
         )}
       </div>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {state.error}
         </p>
       )}

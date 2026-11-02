@@ -52,24 +52,23 @@ export default function CategoryRuleForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex w-full max-w-md flex-col gap-3">
+    <form action={formAction} className="panel">
       {defaultValues?.id && (
         <input type="hidden" name="ruleId" value={defaultValues.id} />
       )}
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="rule-match-type"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="rule-match-type" className="label">
           Match type
         </label>
         <select
           id="rule-match-type"
           name="matchType"
           required
-          defaultValue={defaultValues?.matchType ?? CATEGORY_RULE_MATCH_TYPES[0]}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          defaultValue={
+            defaultValues?.matchType ?? CATEGORY_RULE_MATCH_TYPES[0]
+          }
+          className="input"
         >
           {CATEGORY_RULE_MATCH_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -80,10 +79,7 @@ export default function CategoryRuleForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="rule-pattern"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="rule-pattern" className="label">
           Pattern
         </label>
         <input
@@ -92,20 +88,17 @@ export default function CategoryRuleForm({
           required
           placeholder="e.g. STARBUCKS"
           defaultValue={defaultValues?.pattern}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
-        <p className="text-xs text-zinc-500">
-          Matched against the transaction description, case-insensitively.
-          For &quot;Regex&quot;, this is a regular expression body (no
-          slashes needed).
+        <p className="text-xs text-muted">
+          Matched against the transaction description, case-insensitively. For
+          &quot;Regex&quot;, this is a regular expression body (no slashes
+          needed).
         </p>
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="rule-category"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="rule-category" className="label">
           Category
         </label>
         <select
@@ -113,7 +106,7 @@ export default function CategoryRuleForm({
           name="categoryId"
           required
           defaultValue={defaultValues?.categoryId ?? ""}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           <option value="" disabled>
             Select a category
@@ -127,10 +120,7 @@ export default function CategoryRuleForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="rule-priority"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="rule-priority" className="label">
           Priority
         </label>
         <input
@@ -141,35 +131,28 @@ export default function CategoryRuleForm({
           required
           placeholder="10"
           defaultValue={defaultValues?.priority}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted">
           Lower numbers are evaluated first. When multiple rules match a
           transaction, the lowest-priority-number rule wins.
         </p>
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-        >
+        <button type="submit" disabled={pending} className="btn">
           {pending ? pendingLabel : submitLabel}
         </button>
 
         {onCancelHref && (
-          <a
-            href={onCancelHref}
-            className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-          >
+          <a href={onCancelHref} className="link-quiet">
             Cancel
           </a>
         )}
       </div>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {state.error}
         </p>
       )}

@@ -25,12 +25,8 @@ export default async function InviteRedemptionPage({
   if (!validation.valid) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-24 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Invite not available
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
-          {errorMessageFor(validation.reason)}
-        </p>
+        <h1 className="page-title">Invite not available</h1>
+        <p className="page-lede">{errorMessageFor(validation.reason)}</p>
         <Link href="/signup" className="underline">
           Sign up instead
         </Link>
@@ -39,19 +35,15 @@ export default async function InviteRedemptionPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-24 text-center">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          You&apos;ve been invited
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
-          Create your account to join the household.
-        </p>
+    <main className="page-auth">
+      <div className="page-head">
+        <h1 className="page-title">You&apos;ve been invited</h1>
+        <p className="page-lede">Create your account to join the household.</p>
       </div>
 
       <RedeemInviteForm token={token} />
 
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-muted">
         Already have an account?{" "}
         <Link href="/login" className="underline">
           Log in

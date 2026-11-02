@@ -70,11 +70,9 @@ export default async function ImportBatchPreviewPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Import preview
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+      <div className="page-head">
+        <h1 className="page-title">Import preview</h1>
+        <p className="page-lede">
           {batch.filename} — {batch.rows.length}{" "}
           {batch.rows.length === 1 ? "row" : "rows"}
           {blockedCount > 0 && `, ${blockedCount} blocked`}
@@ -88,7 +86,7 @@ export default async function ImportBatchPreviewPage({
       </div>
 
       {batch.committed ? (
-        <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300">
+        <div className="rounded-[10px] border border-accent/30 bg-accent-soft px-4 py-3 text-sm font-semibold text-accent">
           Committed —{" "}
           <Link href="/transactions" className="underline hover:no-underline">
             view the resulting transactions
@@ -99,72 +97,68 @@ export default async function ImportBatchPreviewPage({
         <div className="flex items-center gap-3">
           <form action={reapplyCategoryRulesAction}>
             <input type="hidden" name="batchId" value={batch.id} />
-            <button
-              type="submit"
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
-            >
+            <button type="submit" className="btn-secondary">
               Re-apply category rules
             </button>
           </form>
 
           <form action={commitImportBatchAction}>
             <input type="hidden" name="batchId" value={batch.id} />
-            <button
-              type="submit"
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
-            >
-              Commit {eligibleCount} {eligibleCount === 1 ? "transaction" : "transactions"}
+            <button type="submit" className="btn">
+              Commit {eligibleCount}{" "}
+              {eligibleCount === 1 ? "transaction" : "transactions"}
             </button>
           </form>
         </div>
       )}
 
-      <div className="w-full max-w-5xl overflow-x-auto rounded-md border border-zinc-300 dark:border-zinc-700">
+      <div className="table-wrap">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-zinc-300 dark:border-zinc-700">
-              <th className="px-3 py-2 font-medium">Date</th>
-              <th className="px-3 py-2 font-medium">Description</th>
-              <th className="px-3 py-2 font-medium">Amount</th>
-              <th className="px-3 py-2 font-medium">Category</th>
-              <th className="px-3 py-2 font-medium">Include</th>
-              <th className="px-3 py-2 font-medium">Status</th>
+            <tr className="border-b border-line">
+              <th className="th">Date</th>
+              <th className="th">Description</th>
+              <th className="th">Amount</th>
+              <th className="th">Category</th>
+              <th className="th">Include</th>
+              <th className="th">Status</th>
             </tr>
           </thead>
           <tbody>
             {batch.rows.map((row) => (
               <tr
                 key={row.id}
-                className={`border-b border-zinc-200 align-top last:border-0 dark:border-zinc-800 ${
+                className={`border-b border-line align-top last:border-0 ${
                   row.parseError
-                    ? "bg-red-50 dark:bg-red-950/30"
+                    ? "bg-warn-soft"
                     : row.isDuplicate
-                      ? "bg-amber-50 dark:bg-amber-950/30"
+                      ? "bg-chart-amber/15"
                       : ""
                 }`}
               >
-                <td className="px-3 py-2">
+                <td className="td">
                   {row.parsedDate
                     ? row.parsedDate.toISOString().slice(0, 10)
                     : row.rawDate || "—"}
                 </td>
-                <td className="px-3 py-2">{row.rawDescription || "—"}</td>
-                <td className="px-3 py-2">
+                <td className="td">{row.rawDescription || "—"}</td>
+                <td className="td">
                   {row.parsedAmount !== null
                     ? row.parsedAmount.toString()
                     : row.rawAmount || "—"}
                 </td>
-                <td className="px-3 py-2">
+                <td className="td">
                   {batch.committed || row.parseError ? (
                     <span>
                       {row.category ? (
                         row.category.name
                       ) : (
-                        <span className="text-zinc-500">Uncategorized</span>
+                        <span className="text-muted">Uncategorized</span>
                       )}
                       {row.category && (
-                        <span className="ml-1 text-xs text-zinc-500">
-                          ({row.categorySource === "manual" ? "manual" : "auto"})
+                        <span className="ml-1 text-xs text-muted">
+                          ({row.categorySource === "manual" ? "manual" : "auto"}
+                          )
                         </span>
                       )}
                     </span>
@@ -179,7 +173,7 @@ export default async function ImportBatchPreviewPage({
                         name="categoryId"
                         defaultValue={row.categoryId ?? ""}
                         aria-label={`Category for row ${row.rowIndex + 1}`}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                        className="input min-h-9 px-2 py-1"
                       >
                         <option value="">Uncategorized</option>
                         {categories.map((category) => (
@@ -188,29 +182,31 @@ export default async function ImportBatchPreviewPage({
                           </option>
                         ))}
                       </select>
-                      <label className="flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                      <label className="flex items-center gap-1 text-xs text-muted">
                         <input type="checkbox" name="saveAsRule" value="1" />
                         Save as rule
                       </label>
                       <button
                         type="submit"
-                        className="w-fit rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium dark:border-zinc-700"
+                        className="btn-secondary min-h-9 px-3 py-1 text-xs"
                       >
                         Save
                       </button>
                       {row.categorySource === "manual" && (
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-xs text-muted">
                           Manually corrected
                         </span>
                       )}
                     </form>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className="td">
                   {row.parseError ? (
-                    <span className="text-zinc-500">Blocked</span>
+                    <span className="text-muted">Blocked</span>
                   ) : batch.committed ? (
-                    <span>{row.committedTransactionId ? "Committed" : "Skipped"}</span>
+                    <span>
+                      {row.committedTransactionId ? "Committed" : "Skipped"}
+                    </span>
                   ) : (
                     <form action={setImportRowIncludeInCommitAction}>
                       <input type="hidden" name="batchId" value={batch.id} />
@@ -222,27 +218,24 @@ export default async function ImportBatchPreviewPage({
                       />
                       <button
                         type="submit"
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium dark:border-zinc-700"
+                        className="btn-secondary min-h-9 px-3 py-1 text-xs"
                       >
                         {row.includeInCommit ? "Skip" : "Include"}
                       </button>
                     </form>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className="td">
                   {row.parseError ? (
-                    <span
-                      role="alert"
-                      className="font-medium text-red-600 dark:text-red-400"
-                    >
+                    <span role="alert" className="font-medium text-warn-strong">
                       {row.parseError} — fix in a future CSV re-upload
                     </span>
                   ) : row.isDuplicate ? (
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                    <span className="font-medium text-warn">
                       Likely duplicate — excluded by default
                     </span>
                   ) : (
-                    <span className="text-zinc-500">OK</span>
+                    <span className="text-muted">OK</span>
                   )}
                 </td>
               </tr>
@@ -251,10 +244,7 @@ export default async function ImportBatchPreviewPage({
         </table>
       </div>
 
-      <Link
-        href="/import"
-        className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-      >
+      <Link href="/import" className="link-quiet">
         Import another file
       </Link>
     </main>

@@ -13,12 +13,9 @@ export default function AccountForm() {
   );
 
   return (
-    <form action={formAction} className="flex w-full max-w-md flex-col gap-3">
+    <form action={formAction} className="panel">
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="account-name"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="account-name" className="label">
           Account name
         </label>
         <input
@@ -26,15 +23,12 @@ export default function AccountForm() {
           name="name"
           required
           placeholder="e.g. Joint Checking"
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="account-type"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="account-type" className="label">
           Type
         </label>
         <select
@@ -42,7 +36,7 @@ export default function AccountForm() {
           name="type"
           required
           defaultValue={ACCOUNT_TYPES[0]}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           {ACCOUNT_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -52,16 +46,12 @@ export default function AccountForm() {
         </select>
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-      >
+      <button type="submit" disabled={pending} className="btn">
         {pending ? "Adding…" : "Add account"}
       </button>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {state.error}
         </p>
       )}

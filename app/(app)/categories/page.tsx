@@ -9,15 +9,12 @@ function CategoryRow({ category }: { category: Category }) {
   return (
     <li
       key={category.id}
-      className="flex items-center justify-between rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+      className="row-card flex-row items-center justify-between"
     >
       <span>{category.name}</span>
       <form action={archiveCategoryAction}>
         <input type="hidden" name="categoryId" value={category.id} />
-        <button
-          type="submit"
-          className="text-red-600 underline hover:no-underline dark:text-red-400"
-        >
+        <button type="submit" className="link-danger">
           Archive
         </button>
       </form>
@@ -49,12 +46,10 @@ export default async function CategoriesPage() {
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-10 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Categories
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+    <main className="page">
+      <div className="page-head">
+        <h1 className="page-title">Categories</h1>
+        <p className="page-lede">
           Add and manage the categories your household uses to classify
           transactions.
         </p>
@@ -62,13 +57,13 @@ export default async function CategoriesPage() {
 
       <CategoryForm />
 
-      <div className="flex w-full max-w-md flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="panel">
+        <h2 className="panel-title">
           {CATEGORY_KIND_LABELS.expense} categories
         </h2>
 
         {expenseCategories.length === 0 ? (
-          <p className="text-sm text-zinc-500">No expense categories yet.</p>
+          <p className="hint">No expense categories yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {expenseCategories.map((category) => (
@@ -78,15 +73,13 @@ export default async function CategoriesPage() {
         )}
       </div>
 
-      <div className="flex w-full max-w-md flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="panel">
+        <h2 className="panel-title">
           {CATEGORY_KIND_LABELS.savings_goal} categories
         </h2>
 
         {savingsGoalCategories.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            No savings goal categories yet.
-          </p>
+          <p className="hint">No savings goal categories yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {savingsGoalCategories.map((category) => (

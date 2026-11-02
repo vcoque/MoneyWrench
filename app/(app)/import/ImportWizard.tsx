@@ -57,7 +57,7 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
         <input type="hidden" name="filename" value={filename} />
         <input type="hidden" name="csvText" value={csvText} />
 
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-muted">
           {filename}: map each column to date, description, and amount.
         </p>
 
@@ -83,10 +83,10 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
         </div>
 
         {sampleRows.length > 0 && (
-          <div className="overflow-x-auto rounded-md border border-zinc-300 dark:border-zinc-700">
+          <div className="table-wrap">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-zinc-300 dark:border-zinc-700">
+                <tr className="border-b border-line">
                   {headers.map((header, index) => (
                     <th key={index} className="px-2 py-1 font-medium">
                       {header}
@@ -98,7 +98,7 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
                 {sampleRows.map((row, rowIndex) => (
                   <tr
                     key={rowIndex}
-                    className="border-b border-zinc-200 last:border-0 dark:border-zinc-800"
+                    className="border-b border-line last:border-0"
                   >
                     {headers.map((_, colIndex) => (
                       <td key={colIndex} className="px-2 py-1">
@@ -113,23 +113,16 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
         )}
 
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={createPending}
-            className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-          >
+          <button type="submit" disabled={createPending} className="btn">
             {createPending ? "Importing…" : "Parse and preview"}
           </button>
-          <Link
-            href="/import"
-            className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-          >
+          <Link href="/import" className="link-quiet">
             Start over
           </Link>
         </div>
 
         {createState.error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="error-text">
             {createState.error}
           </p>
         )}
@@ -138,15 +131,9 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
   }
 
   return (
-    <form
-      action={analyzeFormAction}
-      className="flex w-full max-w-md flex-col gap-3"
-    >
+    <form action={analyzeFormAction} className="panel">
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="import-account"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="import-account" className="label">
           Account
         </label>
         <select
@@ -154,7 +141,7 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
           name="accountId"
           required
           defaultValue=""
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         >
           <option value="" disabled>
             Select an account
@@ -168,10 +155,7 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="import-file"
-          className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-        >
+        <label htmlFor="import-file" className="label">
           CSV file
         </label>
         <input
@@ -180,20 +164,16 @@ export default function ImportWizard({ accounts }: ImportWizardProps) {
           type="file"
           accept=".csv,text/csv"
           required
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={analyzePending}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-zinc-50 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-      >
+      <button type="submit" disabled={analyzePending} className="btn">
         {analyzePending ? "Reading…" : "Continue"}
       </button>
 
       {analyzeState.step === "upload" && analyzeState.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="error-text">
           {analyzeState.error}
         </p>
       )}
@@ -211,19 +191,10 @@ type ColumnSelectProps = {
 function ColumnSelect({ id, name, label, headers }: ColumnSelectProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label
-        htmlFor={id}
-        className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-      >
+      <label htmlFor={id} className="label">
         {label}
       </label>
-      <select
-        id={id}
-        name={name}
-        required
-        defaultValue=""
-        className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-      >
+      <select id={id} name={name} required defaultValue="" className="input">
         <option value="" disabled>
           Select a column
         </option>

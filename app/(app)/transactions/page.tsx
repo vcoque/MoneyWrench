@@ -70,27 +70,21 @@ export default async function TransactionsPage({
   // renders, but checking it here too means an imported transaction (once
   // Task 12+ exists) never even shows an edit form.
   const editingTransaction = params.edit
-    ? transactions.find(
-        (t) => t.id === params.edit && t.source === "manual",
-      )
+    ? transactions.find((t) => t.id === params.edit && t.source === "manual")
     : undefined;
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-10 p-24">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Transactions
-        </h1>
-        <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+    <main className="page">
+      <div className="page-head">
+        <h1 className="page-title">Transactions</h1>
+        <p className="page-lede">
           Log and manage your household&apos;s transactions.
         </p>
       </div>
 
       {editingTransaction ? (
-        <div className="flex w-full max-w-md flex-col gap-2">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Edit transaction
-          </h2>
+        <div className="panel">
+          <h2 className="panel-title">Edit transaction</h2>
           <TransactionForm
             action={updateTransactionAction}
             accounts={selectOptions.accounts}
@@ -119,22 +113,16 @@ export default async function TransactionsPage({
         />
       )}
 
-      <form
-        method="get"
-        className="flex w-full max-w-2xl flex-wrap items-end gap-3 rounded-md border border-zinc-300 p-3 dark:border-zinc-700"
-      >
+      <form method="get" className="panel flex-row flex-wrap items-end">
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor="filter-account"
-            className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
+          <label htmlFor="filter-account" className="label">
             Account
           </label>
           <select
             id="filter-account"
             name="accountId"
             defaultValue={filters.accountId ?? ""}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="">All accounts</option>
             {selectOptions.accounts.map((account) => (
@@ -146,17 +134,14 @@ export default async function TransactionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor="filter-category"
-            className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
+          <label htmlFor="filter-category" className="label">
             Category
           </label>
           <select
             id="filter-category"
             name="categoryId"
             defaultValue={filters.categoryId ?? ""}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="">All categories</option>
             {selectOptions.categories.map((category) => (
@@ -168,10 +153,7 @@ export default async function TransactionsPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor="filter-month"
-            className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
+          <label htmlFor="filter-month" className="label">
             Month
           </label>
           <input
@@ -179,46 +161,40 @@ export default async function TransactionsPage({
             name="month"
             type="month"
             defaultValue={filters.month ?? ""}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
-        <button
-          type="submit"
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
-        >
+        <button type="submit" className="btn-secondary">
           Apply filters
         </button>
 
-        <a
-          href="/transactions"
-          className="text-sm text-zinc-600 underline hover:no-underline dark:text-zinc-400"
-        >
+        <a href="/transactions" className="link-quiet">
           Clear filters
         </a>
       </form>
 
-      <div className="flex w-full max-w-2xl flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="panel">
+        <h2 className="panel-title">
           {transactions.length}{" "}
           {transactions.length === 1 ? "transaction" : "transactions"}
         </h2>
 
         {transactions.length === 0 ? (
-          <p className="text-sm text-zinc-500">No transactions found.</p>
+          <p className="hint">No transactions found.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {transactions.map((transaction) => (
               <li
                 key={transaction.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                className="row-card flex-row items-center justify-between gap-3"
               >
                 <div className="flex flex-col">
                   <span>
                     {transaction.date.toISOString().slice(0, 10)} —{" "}
                     {transaction.description}
                   </span>
-                  <span className="text-zinc-500">
+                  <span className="text-muted">
                     {transaction.account.name} ·{" "}
                     {transaction.category?.name ?? "Uncategorized"} ·{" "}
                     {TRANSACTION_TYPE_LABELS[transaction.type]}
@@ -235,7 +211,7 @@ export default async function TransactionsPage({
                     <>
                       <a
                         href={buildHref(filters, { edit: transaction.id })}
-                        className="text-zinc-600 underline hover:no-underline dark:text-zinc-400"
+                        className="link-quiet"
                       >
                         Edit
                       </a>
@@ -245,10 +221,7 @@ export default async function TransactionsPage({
                           name="transactionId"
                           value={transaction.id}
                         />
-                        <button
-                          type="submit"
-                          className="text-red-600 underline hover:no-underline dark:text-red-400"
-                        >
+                        <button type="submit" className="link-danger">
                           Delete
                         </button>
                       </form>
